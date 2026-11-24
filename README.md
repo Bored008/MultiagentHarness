@@ -46,8 +46,10 @@ When multiple engineers work with different AI developer tools (e.g., **Claude C
 
 1. **Tool-Agnostic Agent Adapters**:
    - `adapters/claude_adapter.py`: Seamless integration for Claude Code CLI.
-   - `adapters/codex_adapter.py`: Seamless integration for OpenAI Codex / Cursor / Antigravity.
-   - Standard operations: `claim_task`, `get_task_subgraph`, `submit_result`, and realtime conflict listeners.
+   - `adapters/codex_adapter.py`: Seamless integration for OpenAI Codex / Cursor.
+   - `adapters/agy_adapter.py`: First-class integration for Google Antigravity (AGY).
+   - `adapters/cli.py`: Symmetrical CLI runner, profile persistence, and auto-claim engine.
+   - Standard operations: `connect`, `start`, `done`, `claim`, `context`, `submit`, `seed`, and real-time conflict listeners.
 2. **Deterministic Conflict Invalidation**:
    - When a shared requirement or upstream task changes (`REQ-01@v2`), OmniHarness calculates the exact downstream blast radius in `< 1ms` and invalidates affected in-flight tasks with conflict notifications.
 3. **Scoped Subgraphs (~1.5k tokens)**:
@@ -74,7 +76,7 @@ python -m pip install -r requirements.txt
 ```bash
 python -m pytest
 ```
-*(37 unit and integration tests verifying store idempotency, graph blast-radius traversal, REST endpoints, and adapter conflict lifecycles)*
+*(89 comprehensive unit and integration tests verifying SQLite store idempotency, NetworkX DAG blast-radius traversal, REST endpoints, auth token verifiers, and multi-agent adapter conflict lifecycles)*
 
 ### 3. Launch the OmniHarness Server & Live Dashboard
 ```bash
@@ -102,24 +104,33 @@ python workflows/omniharness_demo.py
 MultiagentHarness/
 ├── adapters/
 │   ├── base.py            # BaseAgentAdapter & ConflictListener
+│   ├── cli.py             # Symmetrical CLI parser & profile resolution
 │   ├── claude_adapter.py  # Claude Code CLI adapter implementation
-│   └── codex_adapter.py   # OpenAI Codex / Cursor adapter implementation
+│   ├── codex_adapter.py   # OpenAI Codex / Cursor adapter implementation
+│   └── agy_adapter.py     # Google Antigravity (AGY) adapter implementation
+├── auth/
+│   ├── middleware.py      # FastAPI HTTPBearer token validator
+│   ├── schemas.py         # Pydantic v2 JWT claim schemas
+│   └── verifier.py        # RS256 token verification logic
 ├── harness/
 │   ├── models.py          # Pydantic schemas (Node, TaskEvent, Subgraph)
 │   ├── store.py           # SQLite WAL event sourcing & idempotency store
 │   ├── graph.py           # NetworkX DAG engine & blast-radius invalidation
 │   ├── server.py          # FastAPI REST & WebSocket server
+│   ├── seeds.py           # Pre-configured DAG templates (tictactoe, auth)
 │   └── dashboard.html     # Live interactive visual graph dashboard
 ├── tests/
 │   ├── test_adapters.py   # Tests for agent adapters & conflict signals
+│   ├── test_auth_middleware.py # Tests for RS256 token verifier
 │   ├── test_graph.py      # Tests for DAG cycles & blast-radius invalidation
 │   ├── test_server.py     # Tests for REST endpoints & WebSockets
 │   └── test_store.py      # Tests for SQLite event persistence & idempotency
 ├── workflows/
 │   └── omniharness_demo.py # 6-gate end-to-end evaluation demo
 ├── notes/
-│   └── active-context.md  # Architectural context & project memory
-├── AGENTS.md              # Project agent guidelines & standards
+│   ├── active-context.md  # Architectural context & project memory
+│   └── daily/             # Daily engineering logs & decisions
+├── AGENTS.md              # Zero-ceremony coding agent protocol
 ├── requirements.txt       # Python dependencies
 └── README.md              # Project documentation
 ```
