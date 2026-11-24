@@ -3,6 +3,12 @@
 > **OmniHarness**: Tool-Agnostic Multi-Agent Collaboration Harness for Shared Team Knowledge Base  
 > Built for **NexHack 2.0 — Problem Statement 01 (Generative AI Track)**
 
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com)
+[![NetworkX](https://img.shields.io/badge/NetworkX-DAG_Engine-orange.svg)](https://networkx.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-WAL_Event_Log-003B57.svg)](https://sqlite.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ---
 
 ## 🌟 Overview
