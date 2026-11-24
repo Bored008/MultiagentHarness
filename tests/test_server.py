@@ -977,3 +977,89 @@ def test_unknown_paths_and_path_traversal_return_404(tmp_path):
         assert proj_client.get("/calc/../harness/server.py").status_code == 404
         assert proj_client.get("/calc/%2e%2e/harness/server.py").status_code == 404
         assert proj_client.get("/api/nonexistent").status_code == 404
+
+
+def test_workspace_users_join_access_claim_submit_and_reset(client):
+    """Verify User 1/User 2 sequential joins, second-laptop task access & claim tracking, WS broadcasts, and reset."""
+    client.post("/api/nodes", json={"id": "TSK-U1", "title": "Auth Module", "type": "TASK"})
+
+    with client.websocket_connect("/ws/graph") as ws:
+        _ = ws.receive_json()  # CONNECTED
+
+        # 1. Two browser/unnamed users enter workspace -> User 1, User 2
+        j1 = client.post("/api/users/join", json={"tool_name": "dashboard"})
+        assert j1.status_code == 200
+        assert j1.json()["user"]["user_id"] == "user-1"
+        assert j1.json()["user"]["display_name"] == "User 1"
+        ws_j1 = ws.receive_json()
+        assert ws_j1["event"] == "USER_JOINED"
+        assert ws_j1["user"]["display_name"] == "User 1"
+
+        j2 = client.post("/api/users/join", json={"tool_name": "dashboard"})
+        assert j2.status_code == 200
+        assert j2.json()["user"]["user_id"] == "user-2"
+        assert j2.json()["user"]["display_name"] == "User 2"
+        ws_j2 = ws.receive_json()
+        assert ws_j2["event"] == "USER_JOINED"
+
+        # 2. Second laptop accesses ready tasks & subgraph using X-Agent-Id header
+        ready_resp = client.get(
+            "/api/tasks/ready",
+            headers={"X-Agent-Id": "laptop2-codex", "X-Tool-Name": "openai_codex", "X-Client-Host": "laptop-2"},
+        )
+        assert ready_resp.status_code == 200
+        ws_ready = ws.receive_json()
+        assert ws_ready["event"] == "USER_JOINED"
+        assert ws_ready["user"]["user_id"] == "laptop2-codex"
+        assert ws_ready["user"]["status"] == "viewing"
+        assert ws_ready["user"]["client_host"] == "laptop-2"
+
+        sub_resp = client.get(
+            "/api/tasks/TSK-U1/subgraph",
+            headers={"X-Agent-Id": "laptop2-codex", "X-Tool-Name": "openai_codex"},
+        )
+        assert sub_resp.status_code == 200
+        ws_sub = ws.receive_json()
+        assert ws_sub["event"] == "USER_UPDATED"
+        assert ws_sub["user"]["last_task_id"] == "TSK-U1"
+
+        # 3. Second laptop claims the task -> single TASK_CLAIMED WS frame + working user state
+        claim_resp = client.post("/api/tasks/TSK-U1/claim", json={
+            "agent_id": "laptop2-codex",
+            "tool_name": "openai_codex",
+            "idempotency_key": "ik-u-claim-1",
+        })
+        assert claim_resp.status_code == 200
+        ws_claim = ws.receive_json()
+        assert ws_claim["event"] == "TASK_CLAIMED"
+        assert ws_claim["user"]["status"] == "working"
+        assert "TSK-U1" in ws_claim["user"]["active_tasks"]
+
+        # GET /api/users & GET /api/graph expose all 3 users
+        users = client.get("/api/users").json()
+        assert [u["user_id"] for u in users] == ["user-1", "user-2", "laptop2-codex"]
+        assert users[2]["active_tasks"] == ["TSK-U1"]
+        graph_users = client.get("/api/graph").json()["users"]
+        assert len(graph_users) == 3
+
+        # 4. Submit returns user to joined with completed task recorded
+        sub_task = client.post("/api/tasks/TSK-U1/submit", json={
+            "agent_id": "laptop2-codex",
+            "idempotency_key": "ik-u-sub-1",
+            "output": {"summary": "done"},
+        })
+        assert sub_task.status_code == 200
+        ws_done = ws.receive_json()
+        assert ws_done["event"] == "TASK_SUBMITTED"
+        assert ws_done["user"]["status"] == "joined"
+        assert ws_done["user"]["completed_tasks"] == ["TSK-U1"]
+
+    # 5. Dashboard renders Users section below Status
+    dash = client.get("/dashboard")
+    assert dash.status_code == 200
+    assert 'id="sidebar-users-list"' in dash.text
+    assert 'id="users-count"' in dash.text
+
+    # 6. Reset clears workspace users cleanly
+    assert client.post("/api/reset").status_code == 200
+    assert client.get("/api/users").json() == []

@@ -391,8 +391,11 @@ Short CLI (if inside repo; save server once with `connect`):
 
     .left-sidebar.collapsed .sidebar-title,
     .left-sidebar.collapsed .sidebar-item > span:not(.legend-icon),
+    .left-sidebar.collapsed .sidebar-item > .user-meta-wrap,
     .left-sidebar.collapsed .sidebar-help > span,
-    .left-sidebar.collapsed .filter-clear-btn {
+    .left-sidebar.collapsed .filter-clear-btn,
+    .left-sidebar.collapsed .sidebar-user-empty,
+    .left-sidebar.collapsed .user-rename-form {
       display: none;
     }
 
@@ -497,6 +500,150 @@ Short CLI (if inside repo; save server once with `connect`):
       height: 8px;
       border-radius: 50%;
       flex-shrink: 0;
+    }
+
+    .sidebar-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 16px;
+      height: 15px;
+      padding: 0 4px;
+      margin-left: 4px;
+      border-radius: 999px;
+      background: var(--bg-surface-alt);
+      color: var(--text-secondary);
+      font-size: 9px;
+      font-weight: 600;
+      vertical-align: middle;
+    }
+
+    .sidebar-users-section {
+      min-height: 0;
+    }
+
+    .sidebar-users-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 210px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .sidebar-user-item {
+      height: auto;
+      min-height: 34px;
+      padding: 4px 6px;
+      gap: 8px;
+    }
+
+    .user-avatar-wrap {
+      position: relative;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      flex-shrink: 0;
+    }
+
+    .user-presence-dot {
+      position: absolute;
+      right: -1px;
+      bottom: -1px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      border: 1.5px solid var(--bg-surface);
+      background: var(--accent-green);
+    }
+    .user-presence-dot.working { background: var(--accent-amber); }
+    .user-presence-dot.viewing { background: var(--accent-blue); }
+    .user-presence-dot.joined  { background: var(--accent-green); }
+
+    .user-meta-wrap {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .user-name-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .user-name-text {
+      font-size: 11.5px;
+      font-weight: 500;
+      line-height: 14px;
+      color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .user-you-tag {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      flex-shrink: 0;
+    }
+
+    .user-sub-text {
+      font-size: 9.5px;
+      font-weight: 400;
+      line-height: 13px;
+      color: var(--text-tertiary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .user-sub-text.working { color: var(--accent-amber); font-weight: 500; }
+    .user-sub-text.viewing { color: var(--accent-blue); }
+
+    .sidebar-user-empty {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 4px 6px;
+    }
+
+    .user-rename-form {
+      display: none;
+      gap: 4px;
+      align-items: center;
+    }
+    .user-rename-form.open { display: flex; }
+    .user-rename-input {
+      flex: 1;
+      min-width: 0;
+      height: 24px;
+      padding: 0 6px;
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-family: inherit;
+      color: var(--text-primary);
+      background: var(--bg-surface);
+    }
+    .user-rename-save {
+      height: 24px;
+      padding: 0 7px;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface-alt);
+      color: var(--text-primary);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
     }
 
     .sidebar-spacer { flex: 1; }
@@ -1129,9 +1276,12 @@ Short CLI (if inside repo; save server once with `connect`):
     @media (max-width: 860px) {
       .left-sidebar { width: 58px; padding: 14px 8px; align-items: center; }
       .left-sidebar .sidebar-title,
-      .left-sidebar .sidebar-item span,
+      .left-sidebar .sidebar-item span:not(.legend-icon),
+      .left-sidebar .sidebar-item .user-meta-wrap,
       .left-sidebar .sidebar-help span,
-      .left-sidebar .filter-clear-btn { display: none; }
+      .left-sidebar .filter-clear-btn,
+      .left-sidebar .sidebar-user-empty,
+      .left-sidebar .user-rename-form { display: none; }
       .right-drawer { width: 290px; }
     }
   </style>
@@ -1238,6 +1388,20 @@ Short CLI (if inside repo; save server once with `connect`):
         <div class="sidebar-item" data-filter-kind="status" data-filter-val="COMPLETED" title="Filter Completed nodes">
           <span class="legend-icon"><span class="status-dot-legend" style="background:var(--accent-green);"></span></span>
           <span>Completed</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section sidebar-users-section">
+        <div class="sidebar-header-row">
+          <div class="sidebar-title">Users <span class="sidebar-count" id="users-count">0</span></div>
+          <button class="filter-clear-btn" id="btn-rename-user" type="button" title="Rename your workspace display name">Rename</button>
+        </div>
+        <form class="user-rename-form" id="user-rename-form">
+          <input class="user-rename-input" id="user-rename-input" type="text" maxlength="32" placeholder="Your name..." aria-label="Workspace user display name">
+          <button class="user-rename-save" type="submit">Save</button>
+        </form>
+        <div class="sidebar-users-list" id="sidebar-users-list">
+          <div class="sidebar-user-empty">No users yet</div>
         </div>
       </div>
 
@@ -1438,12 +1602,14 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     const COL_GAP = 42;
     const ROW_GAP = 16;
 
-    let graphData = { nodes: [], edges: [], stats: {} };
+    let graphData = { nodes: [], edges: [], stats: {}, users: [] };
     let selectedNodeId = null;
     let hoveredNodeId = null;
-    let activeFilter = null; // { kind: 'type'|'status', value: string }
+    let activeFilter = null; // { kind: 'type'|'status'|'user', value: string }
     let isSimulating = false;
     let ws = null;
+    let currentBrowserUserId = null;
+    let joinInFlight = null;
 
     let pan = { x: 24, y: 88 };
     let zoom = 1.0;
@@ -1613,10 +1779,16 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       return g;
     }
 
+    function matchesUserAssignee(assignedTo, userId) {
+      if (!assignedTo || !userId) return false;
+      return assignedTo === userId || assignedTo.startsWith(`${userId} (`);
+    }
+
     function matchesFilter(node) {
       if (!activeFilter) return true;
       if (activeFilter.kind === 'type') return node.type === activeFilter.value;
       if (activeFilter.kind === 'status') return node.status === activeFilter.value;
+      if (activeFilter.kind === 'user') return matchesUserAssignee(node.assigned_to, activeFilter.value);
       return true;
     }
 
@@ -2045,6 +2217,196 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       document.getElementById('badge-claude').classList.toggle('active', assignees.includes('claude'));
       document.getElementById('badge-codex').classList.toggle('active', assignees.includes('codex'));
       document.getElementById('badge-agy').classList.toggle('active', assignees.includes('agy') || assignees.includes('antigravity'));
+      renderUsersList();
+    }
+
+    // ===================== WORKSPACE USERS =====================
+    const USER_AVATAR_PALETTE = [
+      { bg: '#edf3fc', fg: '#3f7dd8' },
+      { bg: '#edf6f0', fg: '#32866a' },
+      { bg: '#f3effa', fg: '#7c5cbf' },
+      { bg: '#fef7e6', fg: '#d97706' },
+      { bg: '#fff0ed', fg: '#e35041' },
+    ];
+
+    function getUserInitials(user) {
+      const name = String(user.display_name || user.user_id || '?').trim();
+      const userMatch = name.match(/^user[- ](\d+)$/i);
+      if (userMatch) return `U${userMatch[1]}`;
+      const parts = name.split(/[\s_-]+/).filter(Boolean);
+      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+      return name.slice(0, 2).toUpperCase() || '?';
+    }
+
+    function getUserPalette(userId) {
+      let hash = 0;
+      const str = String(userId || '');
+      for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+      return USER_AVATAR_PALETTE[hash % USER_AVATAR_PALETTE.length];
+    }
+
+    function upsertLocalUser(user) {
+      if (!user || !user.user_id) return;
+      if (!Array.isArray(graphData.users)) graphData.users = [];
+      const idx = graphData.users.findIndex(u => u.user_id === user.user_id);
+      if (idx >= 0) graphData.users[idx] = user;
+      else graphData.users.push(user);
+    }
+
+    function renderUsersList() {
+      const listEl = document.getElementById('sidebar-users-list');
+      const countEl = document.getElementById('users-count');
+      const renameBtn = document.getElementById('btn-rename-user');
+      if (!listEl || !countEl) return;
+
+      const users = Array.isArray(graphData.users) ? graphData.users : [];
+      countEl.textContent = users.length;
+      if (renameBtn) {
+        const hasSelf = Boolean(currentBrowserUserId && users.some(u => u.user_id === currentBrowserUserId));
+        renameBtn.classList.toggle('visible', hasSelf);
+      }
+
+      listEl.innerHTML = '';
+      if (!users.length) {
+        const empty = document.createElement('div');
+        empty.className = 'sidebar-user-empty';
+        empty.textContent = 'No users yet';
+        listEl.appendChild(empty);
+        return;
+      }
+
+      users.forEach(user => {
+        const item = document.createElement('div');
+        const isActiveFilter = activeFilter && activeFilter.kind === 'user' && activeFilter.value === user.user_id;
+        item.className = 'sidebar-item sidebar-user-item' + (isActiveFilter ? ' active' : '');
+        item.dataset.filterKind = 'user';
+        item.dataset.filterVal = user.user_id;
+
+        const activeTasks = Array.isArray(user.active_tasks) ? user.active_tasks : [];
+        const completedTasks = Array.isArray(user.completed_tasks) ? user.completed_tasks : [];
+        const statusKey = activeTasks.length > 0 ? 'working' : (user.status === 'viewing' ? 'viewing' : 'joined');
+        const palette = getUserPalette(user.user_id);
+
+        const tipParts = [
+          `${user.display_name || user.user_id} (${user.user_id})`,
+          `Tool: ${user.tool_name || 'generic_tool'}`,
+          `Status: ${statusKey}`,
+        ];
+        if (user.client_host) tipParts.push(`Host: ${user.client_host}`);
+        if (activeTasks.length) tipParts.push(`Claimed: ${activeTasks.join(', ')}`);
+        else if (user.last_task_id) tipParts.push(`Last task: ${user.last_task_id}`);
+        item.title = tipParts.join(' · ');
+
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'legend-icon';
+        const avatar = document.createElement('span');
+        avatar.className = 'user-avatar-wrap';
+        avatar.style.background = palette.bg;
+        avatar.style.color = palette.fg;
+        avatar.textContent = getUserInitials(user);
+
+        const dot = document.createElement('span');
+        dot.className = `user-presence-dot ${statusKey}`;
+        avatar.appendChild(dot);
+        iconSpan.appendChild(avatar);
+
+        const metaWrap = document.createElement('div');
+        metaWrap.className = 'user-meta-wrap';
+
+        const nameRow = document.createElement('div');
+        nameRow.className = 'user-name-row';
+
+        const nameText = document.createElement('span');
+        nameText.className = 'user-name-text';
+        nameText.textContent = user.display_name || user.user_id;
+        nameRow.appendChild(nameText);
+
+        if (currentBrowserUserId && user.user_id === currentBrowserUserId) {
+          const youTag = document.createElement('span');
+          youTag.className = 'user-you-tag';
+          youTag.textContent = '(you)';
+          nameRow.appendChild(youTag);
+        }
+
+        const subText = document.createElement('div');
+        subText.className = `user-sub-text ${statusKey}`;
+        if (activeTasks.length) {
+          subText.textContent = `Claimed ${activeTasks[0]}${activeTasks.length > 1 ? ` +${activeTasks.length - 1}` : ''}`;
+        } else if (statusKey === 'viewing' && user.last_task_id) {
+          subText.textContent = `Viewing ${user.last_task_id}`;
+        } else if (completedTasks.length) {
+          subText.textContent = `Done ${completedTasks.length}`;
+        } else if (user.tool_name && user.tool_name !== 'generic_tool' && user.tool_name !== 'dashboard') {
+          subText.textContent = user.tool_name;
+        } else {
+          subText.textContent = 'Joined';
+        }
+
+        metaWrap.appendChild(nameRow);
+        metaWrap.appendChild(subText);
+
+        item.appendChild(iconSpan);
+        item.appendChild(metaWrap);
+        item.addEventListener('click', () => {
+          if (activeFilter && activeFilter.kind === 'user' && activeFilter.value === user.user_id) {
+            activeFilter = null;
+          } else {
+            activeFilter = { kind: 'user', value: user.user_id };
+          }
+          updateFilterUI();
+          renderDAG();
+        });
+        listEl.appendChild(item);
+      });
+    }
+
+    async function ensureBrowserJoined() {
+      if (isSimulating || joinInFlight) return joinInFlight;
+      let savedId = null;
+      let customName = null;
+      try {
+        savedId = localStorage.getItem('omniharness_user_id');
+        customName = localStorage.getItem('omniharness_custom_name');
+      } catch {}
+
+      const users = Array.isArray(graphData.users) ? graphData.users : [];
+      if (savedId && users.some(u => u.user_id === savedId)) {
+        currentBrowserUserId = savedId;
+        renderUsersList();
+        return null;
+      }
+
+      joinInFlight = (async () => {
+        try {
+          const body = { tool_name: 'dashboard' };
+          if (customName) body.display_name = customName;
+          const res = await fetch('/api/users/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data && data.user && data.user.user_id) {
+            currentBrowserUserId = data.user.user_id;
+            try {
+              localStorage.setItem('omniharness_user_id', data.user.user_id);
+              localStorage.setItem('omniharness_user_name', data.user.display_name || data.user.user_id);
+            } catch {}
+          }
+          if (data && Array.isArray(data.users)) {
+            graphData.users = data.users;
+          } else if (data && data.user) {
+            upsertLocalUser(data.user);
+          }
+          renderUsersList();
+        } catch {
+          // Standalone offline fallback mode
+        } finally {
+          joinInFlight = null;
+        }
+      })();
+      return joinInFlight;
     }
 
     // ===================== INSPECTOR DRAWER =====================
@@ -2237,6 +2599,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       if (event.type === 'EVENT_CONFLICT_DETECTED') { bc = 'log-conflict'; bt = 'CONFLICT'; }
       else if (event.type === 'EVENT_TASK_CLAIMED') { bc = 'log-claim'; bt = 'CLAIM'; }
       else if (event.type === 'EVENT_TASK_SUBMITTED') { bc = 'log-submit'; bt = 'SUBMIT'; }
+      else if (event.type === 'EVENT_USER_JOINED') { bc = 'log-submit'; bt = 'JOIN'; }
+      else if (event.type === 'EVENT_USER_UPDATED') { bc = 'log-info'; bt = 'USER'; }
 
       const badge = document.createElement('span');
       badge.className = `log-badge ${bc}`;
@@ -2282,6 +2646,13 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
           try {
             const msg = JSON.parse(e.data);
             logLiveEvent(msg);
+            if (msg.event === 'USER_JOINED' || msg.event === 'USER_UPDATED') {
+              if (msg.user && msg.user.user_id) {
+                upsertLocalUser(msg.user);
+                renderUsersList();
+                return;
+              }
+            }
             if (!isSimulating) fetchGraphState();
           } catch {}
         };
@@ -2309,8 +2680,9 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
           if (data && Array.isArray(data.nodes)) {
             isSimulating = false;
             document.getElementById('sim-banner').classList.remove('visible');
-            graphData = data;
+            graphData = { ...data, users: Array.isArray(data.users) ? data.users : [] };
             renderDAG();
+            ensureBrowserJoined();
 
             if (!hasInitialFit && graphData.nodes.length > 0) {
               fitGraph();
@@ -2438,7 +2810,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       fitGraph();
     };
 
-    // ===================== SIDEBAR FILTERING =====================
+    // ===================== SIDEBAR FILTERING & USER RENAME =====================
     function updateFilterUI() {
       document.querySelectorAll('.sidebar-item[data-filter-kind]').forEach(el => {
         const isMatch = activeFilter &&
@@ -2447,7 +2819,52 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         el.classList.toggle('active', Boolean(isMatch));
       });
       document.getElementById('btn-clear-filter').classList.toggle('visible', Boolean(activeFilter));
+      renderUsersList();
     }
+
+    document.getElementById('btn-rename-user').addEventListener('click', () => {
+      const form = document.getElementById('user-rename-form');
+      const input = document.getElementById('user-rename-input');
+      const open = form.classList.toggle('open');
+      if (open) {
+        const me = (graphData.users || []).find(u => u.user_id === currentBrowserUserId);
+        input.value = (me && me.display_name) || '';
+        input.focus();
+        input.select();
+      }
+    });
+
+    document.getElementById('user-rename-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = document.getElementById('user-rename-form');
+      const input = document.getElementById('user-rename-input');
+      const nextName = input.value.trim();
+      if (!nextName) return;
+      try {
+        localStorage.setItem('omniharness_custom_name', nextName);
+        localStorage.setItem('omniharness_user_name', nextName);
+      } catch {}
+      try {
+        const res = await fetch('/api/users/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: currentBrowserUserId,
+            display_name: nextName,
+            tool_name: 'dashboard',
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.user) {
+            currentBrowserUserId = data.user.user_id;
+            upsertLocalUser(data.user);
+            renderUsersList();
+          }
+        }
+      } catch {}
+      form.classList.remove('open');
+    });
 
     document.querySelectorAll('.sidebar-item[data-filter-kind]').forEach(el => {
       el.addEventListener('click', () => {

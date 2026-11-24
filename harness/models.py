@@ -107,10 +107,32 @@ class SubgraphResponse(BaseModel):
     conflict_details: Optional[str] = None
 
 
+class WorkspaceUser(BaseModel):
+    user_id: str
+    display_name: str
+    tool_name: str = "generic_tool"
+    client_host: Optional[str] = None
+    status: str = "joined"
+    last_task_id: Optional[str] = None
+    active_tasks: List[str] = Field(default_factory=list)
+    completed_tasks: List[str] = Field(default_factory=list)
+    joined_at: float = Field(default_factory=time.time)
+    last_seen: float = Field(default_factory=time.time)
+
+
+class JoinWorkspaceRequest(BaseModel):
+    user_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    display_name: Optional[str] = None
+    tool_name: str = "generic_tool"
+    client_host: Optional[str] = None
+
+
 class GraphStateResponse(BaseModel):
     nodes: List[Node]
     edges: List[Edge]
     stats: Dict[str, int]
+    users: List[WorkspaceUser] = Field(default_factory=list)
 
 
 class GraphSnapshot(BaseModel):
@@ -121,3 +143,4 @@ class GraphSnapshot(BaseModel):
     nodes: List[Node] = Field(default_factory=list)
     edges: List[Edge] = Field(default_factory=list)
     events: List[Event] = Field(default_factory=list)
+    users: List[WorkspaceUser] = Field(default_factory=list)

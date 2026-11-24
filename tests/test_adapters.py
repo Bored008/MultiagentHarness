@@ -823,7 +823,7 @@ def test_three_way_cli_parser_symmetry():
     sub_agy = next(a for a in p_agy._actions if a.dest == "command")
 
     expected_commands = {
-        "connect", "tasks", "start", "done", "seed", "reset",
+        "connect", "tasks", "users", "start", "done", "seed", "reset",
         "claim", "subgraph", "context", "submit", "listen", "graph",
         "export", "import",
     }
@@ -1149,3 +1149,45 @@ def test_cli_export_and_import_commands(tmp_path, monkeypatch, capsys):
     # 5. `import` with missing file returns exit code 1
     assert agy_main(["import", str(tmp_path / "missing.json")]) == 1
     assert "Snapshot file not found" in capsys.readouterr().err
+
+
+def test_adapter_headers_join_workspace_and_users_cli(capsys):
+    """Verify BaseAgentAdapter sends identity headers, connect joins workspace, and `users` CLI lists participants."""
+    seen_headers: List[Dict[str, str]] = []
+    join_bodies: List[Dict[str, Any]] = []
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        seen_headers.append(dict(request.headers))
+        if request.url.path == "/api/users/join":
+            body = json.loads(request.read().decode())
+            join_bodies.append(body)
+            return httpx.Response(200, json={"user": body, "is_new": True, "users": [body]})
+        if request.url.path == "/api/users":
+            return httpx.Response(200, json=[{
+                "user_id": "laptop2-codex",
+                "display_name": "laptop2-codex",
+                "tool_name": "openai_codex",
+                "client_host": "laptop-2",
+                "status": "working",
+                "active_tasks": ["TSK-01"],
+            }])
+        if request.url.path == "/api/tasks/ready":
+            return httpx.Response(200, json=[])
+        return httpx.Response(404)
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(mock_handler), base_url="http://localhost:8000")
+    adapter = CodexAdapter(agent_id="laptop2-codex", server_url="http://localhost:8000", client=mock_client)
+    adapter.join_workspace()
+    adapter.client.get("/api/tasks/ready")
+
+    assert join_bodies[0]["user_id"] == "laptop2-codex"
+    assert seen_headers[1].get("x-agent-id") == "laptop2-codex"
+    assert seen_headers[1].get("x-tool-name") == "laptop2-codex"
+
+    # CLI `users` command
+    import unittest.mock as mock
+    with mock.patch("adapters.codex_adapter.CodexAdapter.__init__", lambda self, agent_id="openai-codex-cursor", server_url="http://localhost:8000", ws_url=None, client=None: super(CodexAdapter, self).__init__(agent_id=agent_id, server_url=server_url, client=mock_client)):
+        assert codex_main(["users"]) == 0
+    out = capsys.readouterr().out
+    assert "laptop2-codex" in out
+    assert "claiming: TSK-01" in out

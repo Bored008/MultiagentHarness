@@ -4,13 +4,14 @@ SQLite Event Store with WAL Mode, strict idempotency keys, and crash recovery.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from harness.models import Edge, Event, GraphSnapshot, Node, NodeStatus, NodeType
+from harness.models import Edge, Event, GraphSnapshot, Node, NodeStatus, NodeType, WorkspaceUser
 
 _UPSERT_NODE_SQL = """
 INSERT INTO nodes (id, title, type, status, assigned_to, version, payload_json, created_at, updated_at)
@@ -66,6 +67,34 @@ def _row_to_event(row: sqlite3.Row) -> Event:
     )
 
 
+def _row_to_workspace_user(row: sqlite3.Row) -> WorkspaceUser:
+    return WorkspaceUser(
+        user_id=row["user_id"],
+        display_name=row["display_name"],
+        tool_name=row["tool_name"],
+        client_host=row["client_host"],
+        status=row["status"],
+        last_task_id=row["last_task_id"],
+        joined_at=row["joined_at"],
+        last_seen=row["last_seen"],
+    )
+
+
+_UPSERT_USER_SQL = """
+INSERT INTO workspace_users (
+    user_id, display_name, tool_name, client_host, status, last_task_id, joined_at, last_seen
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(user_id) DO UPDATE SET
+    display_name=excluded.display_name,
+    tool_name=excluded.tool_name,
+    client_host=excluded.client_host,
+    status=excluded.status,
+    last_task_id=excluded.last_task_id,
+    last_seen=excluded.last_seen
+"""
+
+
 class EventStore:
     def __init__(self, db_path: str = "omniharness.db"):
         self.db_path = db_path
@@ -111,6 +140,17 @@ class EventStore:
                     target TEXT NOT NULL,
                     relation TEXT NOT NULL,
                     PRIMARY KEY (source, target)
+                );
+
+                CREATE TABLE IF NOT EXISTS workspace_users (
+                    user_id TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    tool_name TEXT NOT NULL,
+                    client_host TEXT,
+                    status TEXT NOT NULL,
+                    last_task_id TEXT,
+                    joined_at REAL NOT NULL,
+                    last_seen REAL NOT NULL
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_events_node_id ON events(node_id);
@@ -240,12 +280,113 @@ class EventStore:
             rows = conn.execute("SELECT * FROM events ORDER BY timestamp ASC").fetchall()
             return [_row_to_event(row) for row in rows]
 
+    @staticmethod
+    def _next_guest_identity(conn: sqlite3.Connection) -> Tuple[str, str]:
+        rows = conn.execute("SELECT user_id, display_name FROM workspace_users").fetchall()
+        used_nums = set()
+        for row in rows:
+            for val in (row["user_id"], row["display_name"]):
+                m = re.fullmatch(r"user[- ](\d+)", str(val).strip(), flags=re.IGNORECASE)
+                if m:
+                    used_nums.add(int(m.group(1)))
+        idx = 1
+        while idx in used_nums:
+            idx += 1
+        return f"user-{idx}", f"User {idx}"
+
+    def upsert_workspace_user(
+        self,
+        user_id: Optional[str] = None,
+        display_name: Optional[str] = None,
+        tool_name: str = "generic_tool",
+        client_host: Optional[str] = None,
+        status: str = "joined",
+        last_task_id: Optional[str] = None,
+        preserve_working: bool = False,
+    ) -> Tuple[WorkspaceUser, bool]:
+        """Insert or update a workspace participant, preserving original joined_at."""
+        now = time.time()
+        clean_uid = user_id.strip() if isinstance(user_id, str) and user_id.strip() else None
+        clean_name = display_name.strip() if isinstance(display_name, str) and display_name.strip() else None
+        clean_tool = tool_name.strip() if isinstance(tool_name, str) and tool_name.strip() else "generic_tool"
+        clean_host = client_host.strip() if isinstance(client_host, str) and client_host.strip() else None
+        clean_task = last_task_id.strip() if isinstance(last_task_id, str) and last_task_id.strip() else None
+
+        with self._get_connection() as conn:
+            auto_display: Optional[str] = None
+            if not clean_uid:
+                clean_uid, auto_display = self._next_guest_identity(conn)
+
+            existing = conn.execute(
+                "SELECT * FROM workspace_users WHERE user_id = ?",
+                (clean_uid,),
+            ).fetchone()
+
+            if existing:
+                is_new = False
+                joined_at = existing["joined_at"]
+                resolved_display = clean_name or existing["display_name"]
+                resolved_tool = (
+                    clean_tool
+                    if clean_tool != "generic_tool"
+                    else existing["tool_name"]
+                )
+                resolved_host = clean_host or existing["client_host"]
+                resolved_task = clean_task or existing["last_task_id"]
+                resolved_status = (
+                    "working"
+                    if preserve_working and existing["status"] == "working"
+                    else status
+                )
+            else:
+                is_new = True
+                joined_at = now
+                resolved_display = clean_name or auto_display or clean_uid
+                resolved_tool = clean_tool
+                resolved_host = clean_host
+                resolved_task = clean_task
+                resolved_status = status
+
+            conn.execute(
+                _UPSERT_USER_SQL,
+                (
+                    clean_uid,
+                    resolved_display,
+                    resolved_tool,
+                    resolved_host,
+                    resolved_status,
+                    resolved_task,
+                    joined_at,
+                    now,
+                ),
+            )
+            conn.commit()
+
+        user = WorkspaceUser(
+            user_id=clean_uid,
+            display_name=resolved_display,
+            tool_name=resolved_tool,
+            client_host=resolved_host,
+            status=resolved_status,
+            last_task_id=resolved_task,
+            joined_at=joined_at,
+            last_seen=now,
+        )
+        return user, is_new
+
+    def list_workspace_users(self) -> List[WorkspaceUser]:
+        """Return all workspace users ordered by joined_at ASC."""
+        with self._get_connection() as conn:
+            rows = conn.execute("SELECT * FROM workspace_users ORDER BY joined_at ASC").fetchall()
+            return [_row_to_workspace_user(row) for row in rows]
+
     def export_snapshot(self) -> GraphSnapshot:
-        """Export all nodes, edges, and events as a portable GraphSnapshot."""
+        """Export all nodes, edges, events, and users as a portable GraphSnapshot."""
         with self._get_connection() as conn:
             node_rows = conn.execute("SELECT * FROM nodes ORDER BY created_at ASC").fetchall()
             edge_rows = conn.execute("SELECT * FROM edges").fetchall()
             event_rows = conn.execute("SELECT * FROM events ORDER BY timestamp ASC").fetchall()
+            user_rows = conn.execute("SELECT * FROM workspace_users ORDER BY joined_at ASC").fetchall()
             return GraphSnapshot(
                 nodes=[_row_to_node(row) for row in node_rows],
                 edges=[
@@ -253,6 +394,7 @@ class EventStore:
                     for row in edge_rows
                 ],
                 events=[_row_to_event(row) for row in event_rows],
+                users=[_row_to_workspace_user(row) for row in user_rows],
             )
 
     def import_snapshot(
@@ -261,9 +403,10 @@ class EventStore:
         edges: List[Edge],
         events: List[Event],
         replace: bool = True,
+        users: Optional[List[WorkspaceUser]] = None,
     ) -> Dict[str, int]:
         """
-        Atomically import nodes, edges, and events in a single SQLite transaction.
+        Atomically import nodes, edges, events, and users in a single SQLite transaction.
         Re-imports are idempotent on event_id and idempotency_key via INSERT OR IGNORE.
         """
         with self._get_connection() as conn:
@@ -271,6 +414,7 @@ class EventStore:
                 conn.execute("DELETE FROM edges;")
                 conn.execute("DELETE FROM events;")
                 conn.execute("DELETE FROM nodes;")
+                conn.execute("DELETE FROM workspace_users;")
 
             for node in nodes:
                 conn.execute(_UPSERT_NODE_SQL, _node_params(node))
@@ -301,6 +445,21 @@ class EventStore:
                 if cur.rowcount > 0:
                     inserted_events += cur.rowcount
 
+            for user in (users or []):
+                conn.execute(
+                    _UPSERT_USER_SQL,
+                    (
+                        user.user_id,
+                        user.display_name,
+                        user.tool_name,
+                        user.client_host,
+                        user.status,
+                        user.last_task_id,
+                        user.joined_at,
+                        user.last_seen,
+                    ),
+                )
+
             conn.commit()
 
         return {
@@ -310,10 +469,11 @@ class EventStore:
         }
 
     def clear(self) -> None:
-        """Clear all stored nodes, edges, and events for clean test/demo runs."""
+        """Clear all stored nodes, edges, events, and workspace users for clean test/demo runs."""
         with self._get_connection() as conn:
             conn.execute("DELETE FROM edges;")
             conn.execute("DELETE FROM events;")
             conn.execute("DELETE FROM nodes;")
+            conn.execute("DELETE FROM workspace_users;")
             conn.commit()
 

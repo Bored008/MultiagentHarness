@@ -251,6 +251,13 @@ def build_adapter_parser(
         help="List shared graph nodes and highlight [READY] claimable tasks",
     )
 
+    # Users command
+    subparsers.add_parser(
+        "users",
+        parents=[sub_common],
+        help="List users and agents who joined the shared workspace",
+    )
+
     # Start command (claim + scoped prompt in 1 step)
     start_p = subparsers.add_parser(
         "start",
@@ -496,6 +503,10 @@ def run_adapter_cli(
                 res = adapter.client.get("/health")
                 res.raise_for_status()
                 health_data = res.json()
+                try:
+                    adapter.join_workspace()
+                except Exception:
+                    pass
             except Exception as exc:
                 health_error = str(exc)
 
@@ -538,6 +549,26 @@ def run_adapter_cli(
                     ready_tag = "[READY] " if nid in ready_ids else ""
                     assignee = f" -> assigned to {n.get('assigned_to')}" if n.get("assigned_to") else ""
                     print(f"  {ready_tag}[{n.get('type')}] {nid}: {n.get('title')} ({n.get('status')}){assignee}")
+            return 0
+
+        elif args.command == "users":
+            res = adapter.client.get("/api/users")
+            res.raise_for_status()
+            users = res.json()
+            if as_json:
+                print(json.dumps(users, indent=2))
+            else:
+                print(f"\n[{adapter_name}] Workspace Users ({len(users)}):")
+                if not users:
+                    print("  (none)")
+                for u in users:
+                    active = ", ".join(u.get("active_tasks") or [])
+                    active_note = f" | claiming: {active}" if active else ""
+                    host_note = f" @ {u.get('client_host')}" if u.get("client_host") else ""
+                    print(
+                        f"  - {u.get('display_name')} ({u.get('user_id')}, {u.get('tool_name')}{host_note})"
+                        f" [{u.get('status')}]{active_note}"
+                    )
             return 0
 
         elif args.command == "start":

@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
@@ -33,6 +33,7 @@ from harness.models import (
     Event,
     GraphSnapshot,
     GraphStateResponse,
+    JoinWorkspaceRequest,
     Node,
     NodeStatus,
     NodeType,
@@ -40,6 +41,7 @@ from harness.models import (
     SubgraphResponse,
     SubmitTaskRequest,
     UpdateRequirementRequest,
+    WorkspaceUser,
 )
 from harness.projects import (
     find_disk_project_file,
@@ -60,6 +62,10 @@ EVENT_TASK_SUBMITTED = "EVENT_TASK_SUBMITTED"
 EVENT_CONFLICT_DETECTED = "EVENT_CONFLICT_DETECTED"
 EVENT_REQUIREMENT_UPDATED = "EVENT_REQUIREMENT_UPDATED"
 EVENT_BLAST_RADIUS_ALERT = "EVENT_BLAST_RADIUS_ALERT"
+EVENT_USER_JOINED = "EVENT_USER_JOINED"
+EVENT_USER_UPDATED = "EVENT_USER_UPDATED"
+
+_IGNORED_USER_ACTORS = {"", "system", "seed-engine", "dag-invalidator"}
 
 
 class ConnectionManager:
@@ -187,6 +193,61 @@ def create_app(
     app.state.manager = ws_manager
     app.state.mutation_lock = mutation_lock
 
+    def _sync_workspace_user(
+        user_id: Optional[str] = None,
+        display_name: Optional[str] = None,
+        tool_name: str = "generic_tool",
+        client_host: Optional[str] = None,
+        status_val: str = "joined",
+        last_task_id: Optional[str] = None,
+        preserve_working: bool = True,
+    ) -> tuple[Optional[WorkspaceUser], bool]:
+        if st is None:
+            return None, False
+        if user_id is not None and user_id.strip().lower() in _IGNORED_USER_ACTORS:
+            return None, False
+        user, is_new = st.upsert_workspace_user(
+            user_id=user_id,
+            display_name=display_name,
+            tool_name=tool_name,
+            client_host=client_host,
+            status=status_val,
+            last_task_id=last_task_id,
+            preserve_working=preserve_working,
+        )
+        enriched = next((u for u in dag.list_workspace_users() if u.user_id == user.user_id), user)
+        return enriched, is_new
+
+    async def _broadcast_user_event(user: WorkspaceUser, is_new: bool) -> None:
+        ev_name = "USER_JOINED" if is_new else "USER_UPDATED"
+        ev_type = EVENT_USER_JOINED if is_new else EVENT_USER_UPDATED
+        await ws_manager.broadcast({
+            "event": ev_name,
+            "event_type": ev_type,
+            "type": ev_type,
+            "timestamp": time.time(),
+            "node_id": user.last_task_id or "workspace",
+            "actor": user.user_id,
+            "user": user.model_dump(),
+            "data": {
+                "user_id": user.user_id,
+                "display_name": user.display_name,
+                "tool_name": user.tool_name,
+                "status": user.status,
+                "last_task_id": user.last_task_id,
+            },
+        })
+
+    def _extract_request_user(
+        request: Request,
+        agent_id_param: Optional[str] = None,
+    ) -> tuple[Optional[str], str, Optional[str]]:
+        raw_uid = agent_id_param or request.headers.get("X-Agent-Id")
+        uid = raw_uid.strip() if isinstance(raw_uid, str) and raw_uid.strip() else None
+        tool = (request.headers.get("X-Tool-Name") or "").strip() or "generic_tool"
+        host = (request.headers.get("X-Client-Host") or "").strip() or None
+        return uid, tool, host
+
     # ---------------------------------------------------------
     # WebSocket Realtime Synchronization Endpoints
     # ---------------------------------------------------------
@@ -259,17 +320,24 @@ def create_app(
         project_lines = "\n".join(
             f"  - /{slug}: {base_url}{path}" for slug, path in project_links.items()
         ) or "  (none)"
+        user_lines = "\n".join(
+            f"  - {u.display_name} ({u.user_id}, {u.tool_name}): {u.status}"
+            for u in state.users
+        ) or "  (none)"
         return PlainTextResponse(
             content=(
                 "# OmniHarness Agent Protocol\n"
                 f"Server: {base_url}\n"
                 f"Dashboard: {base_url}/dashboard\n"
-                f"Nodes: {len(state.nodes)} | Ready Tasks: {len(ready)}\n\n"
+                f"Nodes: {len(state.nodes)} | Ready Tasks: {len(ready)} | Users: {len(state.users)}\n\n"
+                "## Workspace Users\n"
+                f"{user_lines}\n\n"
                 "## Currently Ready Tasks\n"
                 f"{ready_lines}\n\n"
                 "## Project Preview Links\n"
                 f"{project_lines}\n\n"
                 "## REST Workflow (any coding agent)\n"
+                f"0. Join workspace:    POST {base_url}/api/users/join  (optional, or pass X-Agent-Id header)\n"
                 f"1. List ready tasks:  GET  {base_url}/api/tasks/ready\n"
                 f"2. Claim task lease:  POST {base_url}/api/tasks/{{TASK_ID}}/claim\n"
                 "   Body: {\"task_id\":\"{TASK_ID}\",\"agent_id\":\"<agent>\",\"tool_name\":\"<tool>\",\"idempotency_key\":\"claim-{TASK_ID}-<rand>\"}\n"
@@ -331,6 +399,15 @@ def create_app(
             except Exception as e:
                 raise HTTPException(status_code=409, detail=str(e))
 
+            _sync_workspace_user(
+                user_id=req.actor,
+                tool_name=request.headers.get("X-Tool-Name") or "generic_tool",
+                client_host=request.headers.get("X-Client-Host"),
+                status_val="joined",
+                last_task_id=created_node.id,
+                preserve_working=True,
+            )
+
         # Broadcast NODE_CREATED
         await ws_manager.broadcast({
             "event": "NODE_CREATED",
@@ -358,11 +435,12 @@ def create_app(
     # 2. POST /tasks/{task_id}/claim (and /api/tasks/{task_id}/claim)
     @app.post("/tasks/{task_id}/claim", status_code=status.HTTP_200_OK)
     @app.post("/api/tasks/{task_id}/claim", status_code=status.HTTP_200_OK)
-    async def claim_task(task_id: str, req: ClaimTaskRequest):
+    async def claim_task(task_id: str, req: ClaimTaskRequest, request: Request):
         effective_task_id = task_id or req.task_id
         if not effective_task_id:
             raise HTTPException(status_code=400, detail="Missing task_id.")
 
+        claimed_user: Optional[WorkspaceUser] = None
         async with mutation_lock:
             # Idempotency check: replay of same claim returns current task state
             if req.idempotency_key and st:
@@ -388,6 +466,15 @@ def create_app(
             except TaskConflictError as e:
                 raise HTTPException(status_code=409, detail=str(e))
 
+            claimed_user, _ = _sync_workspace_user(
+                user_id=req.agent_id,
+                tool_name=getattr(req, "tool_name", "generic_tool"),
+                client_host=request.headers.get("X-Client-Host"),
+                status_val="working",
+                last_task_id=effective_task_id,
+                preserve_working=False,
+            )
+
         # Broadcast TASK_CLAIMED
         await ws_manager.broadcast({
             "event": "TASK_CLAIMED",
@@ -399,6 +486,7 @@ def create_app(
             "agent_id": req.agent_id,
             "tool_name": getattr(req, "tool_name", "generic_tool"),
             "node": node.model_dump(),
+            "user": claimed_user.model_dump() if claimed_user else None,
             "actor": req.agent_id,
             "data": {
                 "agent_id": req.agent_id,
@@ -419,8 +507,10 @@ def create_app(
     @app.get("/api/tasks/{task_id}/subgraph", response_model=SubgraphResponse, status_code=status.HTTP_200_OK)
     async def get_task_subgraph(
         task_id: str,
+        request: Request,
         max_depth: Optional[int] = None,
         max_tokens: int = 1500,
+        agent_id: Optional[str] = None,
     ):
         try:
             subgraph = dag.get_scoped_subgraph(
@@ -428,9 +518,23 @@ def create_app(
                 max_depth=max_depth,
                 max_tokens=max_tokens,
             )
-            return subgraph
         except NodeNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e))
+
+        uid, tool, host = _extract_request_user(request, agent_id)
+        if uid:
+            async with mutation_lock:
+                user, is_new = _sync_workspace_user(
+                    user_id=uid,
+                    tool_name=tool,
+                    client_host=host,
+                    status_val="viewing",
+                    last_task_id=task_id,
+                    preserve_working=True,
+                )
+            if user is not None:
+                await _broadcast_user_event(user, is_new)
+        return subgraph
 
     # 4. POST /tasks/{task_id}/submit (and /api/tasks/{task_id}/submit)
     @app.post("/tasks/{task_id}/submit", status_code=status.HTTP_200_OK)
@@ -479,6 +583,19 @@ def create_app(
                 except TaskConflictError as e:
                     raise HTTPException(status_code=409, detail=str(e))
 
+            has_other_active = any(
+                n.status == NodeStatus.IN_PROGRESS and dag._matches_assignee(n.assigned_to, req.agent_id)
+                for n in dag.list_nodes()
+            )
+            submitted_user, _ = _sync_workspace_user(
+                user_id=req.agent_id,
+                tool_name=request.headers.get("X-Tool-Name") or "generic_tool",
+                client_host=request.headers.get("X-Client-Host"),
+                status_val="working" if has_other_active else "joined",
+                last_task_id=effective_task_id,
+                preserve_working=False,
+            )
+
         # Broadcast TASK_SUBMITTED
         await ws_manager.broadcast({
             "event": "TASK_SUBMITTED",
@@ -489,6 +606,7 @@ def create_app(
             "task_id": effective_task_id,
             "agent_id": req.agent_id,
             "node": node.model_dump(),
+            "user": submitted_user.model_dump() if submitted_user else None,
             "actor": req.agent_id,
             "data": {
                 "output": req.output,
@@ -510,6 +628,7 @@ def create_app(
     @app.post("/api/requirements/{req_id}/update", status_code=status.HTTP_200_OK)
     async def update_requirement(
         req: UpdateRequirementRequest,
+        request: Request,
         req_id: Optional[str] = None,
     ):
         effective_req_id = req_id or req.req_id
@@ -544,6 +663,15 @@ def create_app(
                 )
             except NodeNotFoundError as e:
                 raise HTTPException(status_code=404, detail=str(e))
+
+            _sync_workspace_user(
+                user_id=req.actor,
+                tool_name=request.headers.get("X-Tool-Name") or "generic_tool",
+                client_host=request.headers.get("X-Client-Host"),
+                status_val="joined",
+                last_task_id=effective_req_id,
+                preserve_working=True,
+            )
 
         # Broadcast REQUIREMENT_UPDATED
         await ws_manager.broadcast({
@@ -664,8 +792,55 @@ def create_app(
 
     @app.get("/tasks/ready", response_model=List[Node])
     @app.get("/api/tasks/ready", response_model=List[Node])
-    async def get_ready_tasks():
+    async def get_ready_tasks(request: Request, agent_id: Optional[str] = None):
+        uid, tool, host = _extract_request_user(request, agent_id)
+        if uid:
+            async with mutation_lock:
+                user, is_new = _sync_workspace_user(
+                    user_id=uid,
+                    tool_name=tool,
+                    client_host=host,
+                    status_val="viewing",
+                    preserve_working=True,
+                )
+            if user is not None:
+                await _broadcast_user_event(user, is_new)
         return dag.get_ready_tasks()
+
+    @app.post("/users/join", status_code=status.HTTP_200_OK)
+    @app.post("/api/users/join", status_code=status.HTTP_200_OK)
+    async def join_workspace(
+        request: Request,
+        req: JoinWorkspaceRequest = Body(default_factory=JoinWorkspaceRequest),
+    ):
+        raw_uid = req.user_id or req.agent_id or request.headers.get("X-Agent-Id")
+        tool = (
+            req.tool_name
+            if req.tool_name != "generic_tool"
+            else (request.headers.get("X-Tool-Name") or "generic_tool")
+        )
+        host = req.client_host or request.headers.get("X-Client-Host")
+        async with mutation_lock:
+            user, is_new = _sync_workspace_user(
+                user_id=raw_uid,
+                display_name=req.display_name,
+                tool_name=tool,
+                client_host=host,
+                status_val="joined",
+                preserve_working=True,
+            )
+        if user is not None:
+            await _broadcast_user_event(user, is_new)
+        return {
+            "user": user,
+            "is_new": is_new,
+            "users": dag.list_workspace_users(),
+        }
+
+    @app.get("/users", response_model=List[WorkspaceUser], status_code=status.HTTP_200_OK)
+    @app.get("/api/users", response_model=List[WorkspaceUser], status_code=status.HTTP_200_OK)
+    async def list_workspace_users():
+        return dag.list_workspace_users()
 
     @app.get("/api/seed/templates")
     async def get_seed_templates():

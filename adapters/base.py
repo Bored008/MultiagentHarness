@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import socket
 import threading
 import time
 import uuid
@@ -135,7 +136,32 @@ class BaseAgentAdapter:
 
         self._custom_client = client is not None
         self._client = client or httpx.Client(base_url=self.server_url, timeout=30.0)
+        try:
+            self.client_host: Optional[str] = socket.gethostname()
+        except Exception:
+            self.client_host = None
+        self._client.headers.setdefault("X-Agent-Id", self.agent_id)
+        self._client.headers.setdefault("X-Tool-Name", self.tool_name)
+        if self.client_host:
+            self._client.headers.setdefault("X-Client-Host", self.client_host)
         self._listeners: List[ConflictListener] = []
+
+    def join_workspace(
+        self,
+        display_name: Optional[str] = None,
+        client_host: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Register this agent/laptop as an active participant in the shared workspace."""
+        payload = {
+            "user_id": self.agent_id,
+            "agent_id": self.agent_id,
+            "display_name": display_name or self.agent_id,
+            "tool_name": self.tool_name,
+            "client_host": client_host or self.client_host,
+        }
+        res = self._client.post("/api/users/join", json=payload)
+        res.raise_for_status()
+        return res.json()
 
     @property
     def client(self) -> httpx.Client:

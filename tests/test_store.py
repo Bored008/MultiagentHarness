@@ -134,3 +134,43 @@ def test_list_events_and_snapshot_roundtrip_idempotent(temp_store):
     )
     assert reimport_counts == {"nodes_imported": 2, "edges_imported": 1, "events_imported": 0}
     assert len(temp_store.list_events()) == 3
+
+
+def test_workspace_user_upsert_sequential_and_clear(temp_store):
+    """Verify sequential User 1 / User 2 naming, timestamp preservation, snapshot roundtrip, and clear."""
+    u1, new1 = temp_store.upsert_workspace_user(tool_name="dashboard")
+    u2, new2 = temp_store.upsert_workspace_user(tool_name="dashboard")
+    assert new1 is True and new2 is True
+    assert u1.user_id == "user-1" and u1.display_name == "User 1"
+    assert u2.user_id == "user-2" and u2.display_name == "User 2"
+
+    # Updating user-1 preserves joined_at and tool_name when generic_tool is passed
+    u1_updated, new1_again = temp_store.upsert_workspace_user(
+        user_id="user-1",
+        display_name="Laptop 1",
+        status="working",
+        last_task_id="TSK-01",
+    )
+    assert new1_again is False
+    assert u1_updated.joined_at == u1.joined_at
+    assert u1_updated.display_name == "Laptop 1"
+    assert u1_updated.tool_name == "dashboard"
+    assert u1_updated.status == "working"
+    assert u1_updated.last_task_id == "TSK-01"
+
+    snap = temp_store.export_snapshot()
+    assert len(snap.users) == 2
+
+    temp_store.clear()
+    assert temp_store.list_workspace_users() == []
+
+    temp_store.import_snapshot(
+        nodes=snap.nodes,
+        edges=snap.edges,
+        events=snap.events,
+        replace=True,
+        users=snap.users,
+    )
+    restored = temp_store.list_workspace_users()
+    assert [u.user_id for u in restored] == ["user-1", "user-2"]
+    assert restored[0].display_name == "Laptop 1"

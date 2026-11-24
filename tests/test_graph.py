@@ -507,3 +507,23 @@ def test_idempotency_replay_on_mutations(temp_store):
     res2 = dag.resolve_conflict("IDEMP-TSK", new_output={"ok": True}, actor="worker", idempotency_key="idemp-res-1")
     assert res2.version == 2  # Version NOT bumped again!
 
+
+def test_graph_state_enriches_workspace_users_with_tasks(temp_store):
+    """Verify DAGManager.get_graph_state enriches stored users with active and completed task IDs."""
+    dag = DAGManager(store=temp_store)
+    dag.add_node(Node(id="TSK-A", title="Task A", type=NodeType.TASK))
+    dag.add_node(Node(id="TSK-B", title="Task B", type=NodeType.TASK))
+
+    temp_store.upsert_workspace_user(user_id="laptop2-codex", tool_name="openai_codex", status="joined")
+    dag.claim_task("TSK-A", agent_id="laptop2-codex", tool_name="openai_codex")
+    dag.submit_task("TSK-A", agent_id="laptop2-codex", output={"ok": True})
+    dag.claim_task("TSK-B", agent_id="laptop2-codex", tool_name="openai_codex")
+
+    state = dag.get_graph_state()
+    assert len(state.users) == 1
+    user = state.users[0]
+    assert user.user_id == "laptop2-codex"
+    assert user.status == "working"
+    assert user.active_tasks == ["TSK-B"]
+    assert user.completed_tasks == ["TSK-A"]
+

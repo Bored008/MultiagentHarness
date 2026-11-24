@@ -22,6 +22,7 @@ from harness.models import (
     NodeStatus,
     NodeType,
     SubgraphResponse,
+    WorkspaceUser,
 )
 from harness.store import EventStore
 
@@ -655,8 +656,43 @@ class DAGManager:
         with self._lock:
             return list(nx.topological_sort(self.graph))
 
+    @staticmethod
+    def _matches_assignee(assigned_to: Optional[str], user_id: str) -> bool:
+        if not assigned_to:
+            return False
+        return assigned_to == user_id or assigned_to.startswith(f"{user_id} (")
+
+    def list_workspace_users(self) -> List[WorkspaceUser]:
+        """Return workspace users enriched with active and completed task IDs from the DAG."""
+        with self._lock:
+            nodes = list(self._nodes.values())
+            users = self.store.list_workspace_users() if self.store is not None else []
+            enriched: List[WorkspaceUser] = []
+            for user in users:
+                active_tasks = [
+                    n.id
+                    for n in nodes
+                    if n.status == NodeStatus.IN_PROGRESS and self._matches_assignee(n.assigned_to, user.user_id)
+                ]
+                completed_tasks = [
+                    n.id
+                    for n in nodes
+                    if n.status == NodeStatus.COMPLETED and self._matches_assignee(n.assigned_to, user.user_id)
+                ]
+                resolved_status = "working" if active_tasks else user.status
+                enriched.append(
+                    user.model_copy(
+                        update={
+                            "active_tasks": active_tasks,
+                            "completed_tasks": completed_tasks,
+                            "status": resolved_status,
+                        }
+                    )
+                )
+            return enriched
+
     def get_graph_state(self) -> GraphStateResponse:
-        """Return full snapshot of graph nodes, edges, and status statistics."""
+        """Return full snapshot of graph nodes, edges, status statistics, and workspace users."""
         with self._lock:
             nodes = list(self._nodes.values())
             edges = self.list_edges()
@@ -674,6 +710,7 @@ class DAGManager:
                 nodes=nodes,
                 edges=edges,
                 stats=stats,
+                users=self.list_workspace_users(),
             )
 
     def export_snapshot(self) -> GraphSnapshot:
@@ -720,6 +757,7 @@ class DAGManager:
                     edges=snapshot.edges,
                     events=snapshot.events,
                     replace=replace,
+                    users=snapshot.users,
                 )
                 self.hydrate_from_store()
             else:
