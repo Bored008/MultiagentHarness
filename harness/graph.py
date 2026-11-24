@@ -600,6 +600,11 @@ class DAGManager:
             if not req_node:
                 raise NodeNotFoundError(f"Requirement node '{req_id}' not found.")
 
+            if self.store and idempotency_key:
+                existing = self.store.check_idempotency(idempotency_key)
+                if existing:
+                    return req_node, []
+
             req_node.payload["spec"] = new_spec
             req_node.version += 1
             req_node.updated_at = time.time()
