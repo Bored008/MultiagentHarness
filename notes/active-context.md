@@ -68,17 +68,18 @@
 
 - [x] **Figma Dashboard Consistency & Viewability Redesign**: Updated [harness/dashboard.html](file:///c:/Project/MultiagentHarness/harness/dashboard.html) to match Figma frame `7:2` (`tLMMvLQEAJ7u2mNhfUAqXO`): `#fafbfd` dot-grid canvas, 3-row node cards (`188x88px`), orthogonal stepped & dashed skip-level dependency routing, clickable Type/Status sidebar filters, collapsible Right Inspector Drawer, Help modal, `fitGraph()` zoom-to-fit, and dynamic non-destructive `Simulate Blast` preview.
 - [x] **Zero-Overhead Snapshot Export/Import & Startup Hydration**: Added `GraphSnapshot` (`harness/models.py`), `list_events` / `export_snapshot` / idempotent `import_snapshot` (`harness/store.py` & `harness/graph.py`), `GET /api/export` + `POST /api/import` + `OMNIHARNESS_SNAPSHOT_FILE` empty-DB startup hydration (`harness/server.py`), and `export` / `import [--merge]` CLI commands (`adapters/cli.py`).
+- [x] **Dynamic 4-Letter Project Preview Routing (`/<first4>`)**: Added [harness/projects.py](file:///c:/Project/MultiagentHarness/harness/projects.py) and dynamic `/{project_slug}` + `/{project_slug}/{asset_path:path}` routes in [harness/server.py](file:///c:/Project/MultiagentHarness/harness/server.py) serving submitted DAG HTML, disk `<dir>/index.html`, or pending status pages; surfaced `project_slug`/`project_url` on create/submit, `/llms.txt`, and [harness/dashboard.html](file:///c:/Project/MultiagentHarness/harness/dashboard.html) (`#drawer-project-link`).
 
 ### 5. Next Steps for Demonstration & Deployment
 1. **Export Before Pushing (Optional)**: Run `python -m adapters.codex_adapter export snapshot.json` against the live server before `git push` if you want to restore live history after Render rebuilds (`import snapshot.json`), or set `OMNIHARNESS_SNAPSHOT_FILE` to auto-seed an empty ephemeral container on boot.
-2. **Push & Deploy to Render**: Push updated `main` so `https://multiagentharness.onrender.com` serves `/llms.txt`, `/agent`, `/api/export`, `/api/import`, `/api/seed/{template}`, `/api/tasks/ready`, and the Figma-aligned `dashboard.html`.
+2. **Push & Deploy to Render**: Push updated `main` so `https://multiagentharness.onrender.com` serves `/llms.txt`, `/agent`, `/api/export`, `/api/import`, `/api/seed/{template}`, `/api/tasks/ready`, dynamic `/<first4>` project previews, and the Figma-aligned `dashboard.html`.
 3. **Agent-First Flow**: Point any coding agent at `https://multiagentharness.onrender.com/llms.txt` (or tell it in the repo to claim and complete a task using `AGENTS.md` / `adapters/cli.py`), then watch the live DAG update cleanly on `/dashboard`.
 
 ---
 
-### 6. Clean Handoff Snapshot (2026-11-25 02:00 IST)
+### 6. Clean Handoff Snapshot (2026-11-25 02:30 IST)
 - **Live Server**: `https://multiagentharness.onrender.com` (`/dashboard`, `/llms.txt`, `/agent`, `/docs`, `/health`)
-- **Latest Pushed Commit**: `dc7b5ab` on `origin/main` (local improvements ready to commit & push)
-- **Files Created/Modified in Session**: `harness/models.py`, `harness/store.py`, `harness/graph.py`, `harness/server.py`, `adapters/cli.py`, `tests/test_store.py`, `tests/test_server.py`, `tests/test_adapters.py`, `notes/active-context.md`, `notes/daily/2026-11-25.md`
-- **Verification**: `python -m pytest -q` (80 passed in 8.45s).
-- **Next Actions**: Commit and push local changes to `origin/main` so Render auto-deploys `/llms.txt`, `/api/seed/{template}`, and the clean `dashboard.html`.
+- **Latest Pushed Commit**: `413eb42` on `origin/main` (local 4-letter project routing ready to commit & push)
+- **Files Created/Modified in Session**: `harness/projects.py`, `harness/server.py`, `harness/dashboard.html`, `tests/test_server.py`, `notes/active-context.md`, `notes/daily/2026-11-25.md`
+- **Verification**: `python -m pytest -q` (85 passed in 8.33s), `node --check` on dashboard JS (exit 0).
+- **Next Actions**: Commit and push local changes to `origin/main` so Render auto-deploys dynamic `/<first4>` project routing.

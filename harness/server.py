@@ -41,6 +41,13 @@ from harness.models import (
     SubmitTaskRequest,
     UpdateRequirementRequest,
 )
+from harness.projects import (
+    find_disk_project_file,
+    is_valid_project_slug,
+    list_project_links,
+    node_project_slug,
+    resolve_project,
+)
 from harness.seeds import get_seed_nodes, list_seed_templates
 from harness.store import EventStore
 from todo.router import router as todo_router
@@ -102,12 +109,24 @@ class ConnectionManager:
             logger.info("Pruned %d dead WebSocket connections", len(dead))
 
 
+def _project_link_fields(node: Node, request: Request) -> Dict[str, str]:
+    slug = node_project_slug(node)
+    if not slug:
+        return {}
+    base_url = str(request.base_url).rstrip("/")
+    return {
+        "project_slug": slug,
+        "project_url": f"{base_url}/{slug}",
+    }
+
+
 def create_app(
     db_path: Optional[str] = None,
     dag_manager: Optional[DAGManager] = None,
     store: Optional[EventStore] = None,
     snapshot_file: Optional[str] = None,
     todo_store: Optional[TodoStore] = None,
+    projects_root: Optional[Path] = None,
 ) -> FastAPI:
     """
     Factory function to initialize and configure the OmniHarness FastAPI server.
@@ -119,6 +138,7 @@ def create_app(
     dag = dag_manager or DAGManager(store=st)
     ws_manager = ConnectionManager()
     mutation_lock = asyncio.Lock()
+    resolved_projects_root = Path(projects_root) if projects_root is not None else Path(__file__).parent.parent
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -248,6 +268,10 @@ def create_app(
         ready = dag.get_ready_tasks()
         ready_lines = "\n".join(f"  - {t.id}: {t.title}" for t in ready) or "  (none)"
         state = dag.get_graph_state()
+        project_links = list_project_links(state.nodes, resolved_projects_root)
+        project_lines = "\n".join(
+            f"  - /{slug}: {base_url}{path}" for slug, path in project_links.items()
+        ) or "  (none)"
         return PlainTextResponse(
             content=(
                 "# OmniHarness Agent Protocol\n"
@@ -256,6 +280,8 @@ def create_app(
                 f"Nodes: {len(state.nodes)} | Ready Tasks: {len(ready)}\n\n"
                 "## Currently Ready Tasks\n"
                 f"{ready_lines}\n\n"
+                "## Project Preview Links\n"
+                f"{project_lines}\n\n"
                 "## REST Workflow (any coding agent)\n"
                 f"1. List ready tasks:  GET  {base_url}/api/tasks/ready\n"
                 f"2. Claim task lease:  POST {base_url}/api/tasks/{{TASK_ID}}/claim\n"
@@ -271,22 +297,11 @@ def create_app(
             )
         )
 
-    @app.get("/todo", response_class=HTMLResponse)
-    async def get_todo_app():
-        locations = [
-            Path(__file__).parent.parent / "todo" / "index.html",
-            Path("todo/index.html"),
-        ]
-        for p in locations:
-            if p.exists():
-                return HTMLResponse(content=p.read_text(encoding="utf-8"))
-        return HTMLResponse(content="<h1>To-Do App Not Found</h1>", status_code=404)
-
     # 1. POST /tasks (and /api/nodes, /api/tasks)
     @app.post("/tasks", status_code=status.HTTP_201_CREATED)
     @app.post("/api/nodes", status_code=status.HTTP_201_CREATED)
     @app.post("/api/tasks", status_code=status.HTTP_201_CREATED)
-    async def create_task(req: CreateNodeRequest):
+    async def create_task(req: CreateNodeRequest, request: Request):
         async with mutation_lock:
             # Idempotency check: replay of same key returns existing node
             if req.idempotency_key and st:
@@ -298,6 +313,7 @@ def create_app(
                             "node": existing_node,
                             "message": "Node created successfully (idempotent replay)",
                             **existing_node.model_dump(),
+                            **_project_link_fields(existing_node, request),
                         }
 
             # Conflict check: node ID already exists without matching idempotency key
@@ -349,6 +365,7 @@ def create_app(
             "node": created_node,
             "message": "Node created successfully",
             **created_node.model_dump(),
+            **_project_link_fields(created_node, request),
         }
 
     # 2. POST /tasks/{task_id}/claim (and /api/tasks/{task_id}/claim)
@@ -431,7 +448,7 @@ def create_app(
     # 4. POST /tasks/{task_id}/submit (and /api/tasks/{task_id}/submit)
     @app.post("/tasks/{task_id}/submit", status_code=status.HTTP_200_OK)
     @app.post("/api/tasks/{task_id}/submit", status_code=status.HTTP_200_OK)
-    async def submit_task(task_id: str, req: SubmitTaskRequest):
+    async def submit_task(task_id: str, req: SubmitTaskRequest, request: Request):
         effective_task_id = task_id or req.task_id
         if not effective_task_id:
             raise HTTPException(status_code=400, detail="Missing task_id.")
@@ -447,6 +464,7 @@ def create_app(
                             "task": existing_node,
                             "message": "Task submitted successfully (idempotent replay)",
                             **existing_node.model_dump(),
+                            **_project_link_fields(existing_node, request),
                         }
 
             target_node = dag.get_node(effective_task_id)
@@ -496,6 +514,7 @@ def create_app(
             "task": node,
             "message": "Task submitted successfully",
             **node.model_dump(),
+            **_project_link_fields(node, request),
         }
 
     # 5. POST /requirements/update (and /api/requirements/{req_id}/update, /requirements/{req_id}/update)
@@ -736,6 +755,28 @@ def create_app(
             "timestamp": time.time(),
         })
         return {"status": "success", "message": "Graph and event store reset."}
+
+    # 8. Dynamic 4-letter project preview routes (registered last after all fixed routes)
+    @app.get("/{project_slug}", response_class=HTMLResponse)
+    async def serve_project_preview(project_slug: str):
+        resolution = resolve_project(
+            project_slug.lower(),
+            dag.list_nodes(),
+            resolved_projects_root,
+        )
+        if resolution is None:
+            raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found.")
+        return HTMLResponse(content=resolution.html)
+
+    @app.get("/{project_slug}/{asset_path:path}")
+    async def serve_project_asset(project_slug: str, asset_path: str):
+        slug = project_slug.lower()
+        if not is_valid_project_slug(slug):
+            raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found.")
+        file_path = find_disk_project_file(resolved_projects_root, slug, asset_path)
+        if file_path is None:
+            raise HTTPException(status_code=404, detail=f"Asset '{asset_path}' not found.")
+        return FileResponse(file_path)
 
     return app
 

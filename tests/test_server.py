@@ -845,3 +845,141 @@ def test_startup_snapshot_file_hydrates_empty_db_and_skips_nonempty(tmp_path, mo
     with TestClient(second_app) as second_client:
         graph_after = second_client.get("/api/graph").json()
         assert {n["id"] for n in graph_after["nodes"]} == {"BOOT-REQ", "BOOT-TSK"}
+
+
+# -------------------------------------------------------------
+# Dynamic 4-Letter Project Preview Routing Tests
+# -------------------------------------------------------------
+
+def test_todo_project_serves_todo_index_html(client):
+    """Verify GET /todo serves todo/index.html with 200 HTML."""
+    resp = client.get("/todo")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "TaskMaster" in resp.text
+
+
+def test_longer_disk_project_folder_resolves_at_four_letter_slug(tmp_path):
+    """Verify disk project folder calculator/index.html resolves at GET /calc and lists in /llms.txt."""
+    calc_dir = tmp_path / "calculator"
+    calc_dir.mkdir()
+    (calc_dir / "index.html").write_text("<!doctype html><html><body>Disk Calculator</body></html>", encoding="utf-8")
+    (calc_dir / "app.js").write_text("console.log('calc');", encoding="utf-8")
+
+    db_file = tmp_path / "calc.db"
+    proj_app = create_app(db_path=str(db_file), projects_root=tmp_path)
+    with TestClient(proj_app) as proj_client:
+        resp = proj_client.get("/calc")
+        assert resp.status_code == 200
+        assert "Disk Calculator" in resp.text
+
+        asset_resp = proj_client.get("/calc/app.js")
+        assert asset_resp.status_code == 200
+        assert "console.log('calc');" in asset_resp.text
+
+        llms_resp = proj_client.get("/llms.txt")
+        assert llms_resp.status_code == 200
+        assert "## Project Preview Links" in llms_resp.text
+        assert "/calc" in llms_resp.text
+
+
+def test_create_node_returns_project_slug_and_pending_status_page(tmp_path):
+    """Verify POST /api/nodes returns project_slug/project_url without mutating payload, and GET /note serves escaped pending HTML."""
+    db_file = tmp_path / "notes.db"
+    proj_app = create_app(db_path=str(db_file), projects_root=tmp_path)
+    with TestClient(proj_app) as proj_client:
+        create_payload = {
+            "id": "TSK-NOTE-1",
+            "title": "Notes Manager",
+            "type": "TASK",
+            "payload": {"spec": "Markdown notes"},
+            "idempotency_key": "ik-note-1",
+        }
+        create_resp = proj_client.post("/api/nodes", json=create_payload)
+        assert create_resp.status_code == 201
+        data = create_resp.json()
+        assert data["project_slug"] == "note"
+        assert data["project_url"].endswith("/note")
+        assert data["node"]["payload"] == {"spec": "Markdown notes"}
+
+        # Idempotent replay also surfaces project_slug and project_url
+        replay_resp = proj_client.post("/api/nodes", json=create_payload)
+        assert replay_resp.status_code == 201
+        assert replay_resp.json()["project_slug"] == "note"
+        assert replay_resp.json()["project_url"].endswith("/note")
+
+        # Pending preview page renders escaped node info and publish instructions
+        pending_resp = proj_client.get("/note")
+        assert pending_resp.status_code == 200
+        assert "text/html" in pending_resp.headers["content-type"]
+        assert "Notes Manager" in pending_resp.text
+        assert "TSK-NOTE-1" in pending_resp.text
+        assert "done &lt;TASK_ID&gt; --file index.html" in pending_resp.text
+        assert 'href="/dashboard"' in pending_resp.text
+
+        # HTML-escape protection on malicious title when matched via payload.project
+        xss_resp = proj_client.post("/api/nodes", json={
+            "id": "TSK-XSS-1",
+            "title": "<script>alert(1)</script>",
+            "type": "TASK",
+            "payload": {"project": "xssapp"},
+        })
+        assert xss_resp.status_code == 201
+        assert xss_resp.json()["project_slug"] == "xssa"
+        xss_page = proj_client.get("/xssa")
+        assert xss_page.status_code == 200
+        assert "<script>alert(1)</script>" not in xss_page.text
+        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in xss_page.text
+
+
+def test_submit_task_with_html_serves_live_preview_and_updates_dashboard_link(tmp_path):
+    """Verify POST /api/tasks/{id}/submit with HTML output returns project_url and serves live HTML at GET /note."""
+    db_file = tmp_path / "submit_html.db"
+    proj_app = create_app(db_path=str(db_file), projects_root=tmp_path)
+    with TestClient(proj_app) as proj_client:
+        proj_client.post("/api/nodes", json={
+            "id": "TSK-LIVE-1",
+            "title": "Notes Manager",
+            "type": "TASK",
+        })
+        proj_client.post("/api/tasks/TSK-LIVE-1/claim", json={
+            "agent_id": "codex",
+            "idempotency_key": "ik-claim-live-1",
+        })
+
+        submit_resp = proj_client.post("/api/tasks/TSK-LIVE-1/submit", json={
+            "agent_id": "codex",
+            "idempotency_key": "ik-submit-live-1",
+            "output": {"html": "<!doctype html><html><body>Live</body></html>"},
+        })
+        assert submit_resp.status_code == 200
+        submit_data = submit_resp.json()
+        assert submit_data["project_slug"] == "note"
+        assert submit_data["project_url"].endswith("/note")
+
+        live_resp = proj_client.get("/note")
+        assert live_resp.status_code == 200
+        assert "<!doctype html><html><body>Live</body></html>" in live_resp.text
+
+        dash_resp = proj_client.get("/dashboard")
+        assert dash_resp.status_code == 200
+        assert "drawer-project-link" in dash_resp.text
+
+
+def test_unknown_paths_and_path_traversal_return_404(tmp_path):
+    """Verify unknown slugs, favicon, and path traversal attempts return 404."""
+    calc_dir = tmp_path / "calculator"
+    calc_dir.mkdir()
+    (calc_dir / "index.html").write_text("<html><body>Calc</body></html>", encoding="utf-8")
+    harness_dir = tmp_path / "harness"
+    harness_dir.mkdir()
+    (harness_dir / "server.py").write_text("# secret", encoding="utf-8")
+
+    db_file = tmp_path / "sec.db"
+    proj_app = create_app(db_path=str(db_file), projects_root=tmp_path)
+    with TestClient(proj_app) as proj_client:
+        assert proj_client.get("/nonexistent").status_code == 404
+        assert proj_client.get("/favicon.ico").status_code == 404
+        assert proj_client.get("/calc/../harness/server.py").status_code == 404
+        assert proj_client.get("/calc/%2e%2e/harness/server.py").status_code == 404
+        assert proj_client.get("/api/nonexistent").status_code == 404

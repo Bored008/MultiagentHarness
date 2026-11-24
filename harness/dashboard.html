@@ -1355,6 +1355,7 @@ Short CLI (if inside repo; save server once with `connect`):
             <div class="detail-row"><span class="detail-label">Status</span><span class="status-chip pending" id="drawer-node-status">--</span></div>
             <div class="detail-row"><span class="detail-label">Assigned Agent</span><span class="detail-value" id="drawer-node-assigned">None</span></div>
             <div class="detail-row"><span class="detail-label">Version</span><span class="detail-value" id="drawer-node-version">v1</span></div>
+            <div class="detail-row"><span class="detail-label">Project Link</span><span class="detail-value"><a id="drawer-project-link" target="_blank" rel="noopener" style="color: var(--text-tertiary); text-decoration: none; pointer-events: none;">None</a></span></div>
           </div>
         </div>
 
@@ -2047,6 +2048,27 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     }
 
     // ===================== INSPECTOR DRAWER =====================
+    const RESERVED_PROJECT_SLUGS = new Set([
+      'api', 'ws', 'docs', 'redo', 'open', 'heal', 'dash', 'llms',
+      'agen', 'asse', 'task', 'node', 'grap', 'expo', 'impo', 'rese', 'requ', 'seed'
+    ]);
+
+    function deriveProjectSlug(name) {
+      return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4);
+    }
+
+    function getNodeProjectSlug(node) {
+      if (!node) return '';
+      const p = (node.payload && typeof node.payload === 'object') ? node.payload : {};
+      const candidates = [p.project_slug, p.slug, p.project, node.title, p.app_name, node.id];
+      for (const candidate of candidates) {
+        if (typeof candidate !== 'string' || !candidate.trim()) continue;
+        const slug = deriveProjectSlug(candidate);
+        if (slug && !RESERVED_PROJECT_SLUGS.has(slug)) return slug;
+      }
+      return '';
+    }
+
     function setDrawerCollapsed(collapsed) {
       drawerEl.classList.toggle('collapsed', collapsed);
       drawerRailEl.classList.toggle('visible', collapsed);
@@ -2074,6 +2096,20 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       document.getElementById('drawer-node-id').textContent = node.id;
       document.getElementById('drawer-node-assigned').textContent = node.assigned_to ? `@${node.assigned_to}` : 'None';
       document.getElementById('drawer-node-version').textContent = `v${node.version}`;
+
+      const projectLinkEl = document.getElementById('drawer-project-link');
+      const projectSlug = getNodeProjectSlug(node);
+      if (projectSlug) {
+        projectLinkEl.textContent = `/${projectSlug}`;
+        projectLinkEl.href = `/${projectSlug}`;
+        projectLinkEl.style.color = 'var(--accent-blue)';
+        projectLinkEl.style.pointerEvents = 'auto';
+      } else {
+        projectLinkEl.textContent = 'None';
+        projectLinkEl.removeAttribute('href');
+        projectLinkEl.style.color = 'var(--text-tertiary)';
+        projectLinkEl.style.pointerEvents = 'none';
+      }
 
       const statusEl = document.getElementById('drawer-node-status');
       statusEl.textContent = node.status;
