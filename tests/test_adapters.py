@@ -16,6 +16,7 @@ import websockets.sync.server
 from adapters.base import BaseAgentAdapter, ConflictListener
 from adapters.claude_adapter import ClaudeCodeAdapter, build_parser as build_claude_parser, main as claude_main
 from adapters.codex_adapter import CodexAdapter, build_parser as build_codex_parser, main as codex_main
+from adapters.agy_adapter import AntigravityAdapter, build_parser as build_agy_parser, main as agy_main
 
 
 # ---------------------------------------------------------------------------
@@ -23,12 +24,14 @@ from adapters.codex_adapter import CodexAdapter, build_parser as build_codex_par
 # ---------------------------------------------------------------------------
 
 def test_adapter_contract_symmetry():
-    """Verify ClaudeCodeAdapter and CodexAdapter expose the exact same API contract."""
+    """Verify ClaudeCodeAdapter, CodexAdapter, and AntigravityAdapter expose the exact same API contract."""
     claude_cls = ClaudeCodeAdapter
     codex_cls = CodexAdapter
+    agy_cls = AntigravityAdapter
 
     assert issubclass(claude_cls, BaseAgentAdapter)
     assert issubclass(codex_cls, BaseAgentAdapter)
+    assert issubclass(agy_cls, BaseAgentAdapter)
 
     # Core required methods
     required_methods = [
@@ -47,17 +50,21 @@ def test_adapter_contract_symmetry():
     for method_name in required_methods:
         assert hasattr(claude_cls, method_name), f"ClaudeCodeAdapter missing {method_name}"
         assert hasattr(codex_cls, method_name), f"CodexAdapter missing {method_name}"
+        assert hasattr(agy_cls, method_name), f"AntigravityAdapter missing {method_name}"
 
         claude_sig = inspect.signature(getattr(claude_cls, method_name))
         codex_sig = inspect.signature(getattr(codex_cls, method_name))
-        assert claude_sig == codex_sig, f"Signature mismatch for {method_name}: {claude_sig} vs {codex_sig}"
+        agy_sig = inspect.signature(getattr(agy_cls, method_name))
+        assert claude_sig == codex_sig == agy_sig, f"Signature mismatch for {method_name}"
 
     # Verify default agent IDs are distinct and descriptive
     claude_inst = ClaudeCodeAdapter()
     codex_inst = CodexAdapter()
+    agy_inst = AntigravityAdapter()
     assert claude_inst.agent_id == "claude-code-cli"
     assert codex_inst.agent_id == "openai-codex-cursor"
-    assert claude_inst.agent_id != codex_inst.agent_id
+    assert agy_inst.agent_id == "antigravity-agent"
+
     claude_inst.close()
     codex_inst.close()
 
