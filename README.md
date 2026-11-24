@@ -224,5 +224,25 @@ MultiagentHarness/
 
 ---
 
+## 🎮 Built-In Demonstration: NeonGrid Tic Tac Toe
+
+OmniHarness includes a full end-to-end multi-agent demonstration showcasing collaborative task execution:
+- **`TSK-01`**: Deterministic 3x3 game state engine with 8-way win evaluation and draw locking.
+- **`TSK-02`**: Unbeatable Minimax AI solver with alpha-beta pruning and depth-weighted scoring (< 5ms response time).
+- **`TSK-03`**: Cyberpunk glassmorphic UI, LocalStorage scoreboard, and procedural Web Audio API sound synthesis.
+- **`TSK-04`**: Dynamic SVG vector strike-through animation, canvas confetti celebration engine, and rematch modal.
+- **`TSK-05`**: OmniHarness WebSocket live two-player synchronization bridge.
+
+---
+
+## 👥 Team & Project Contributors
+
+Built for **NexHack 2.0 (Problem Statement 01: Multi-Agent Harness for Shared Team Knowledge Base)**:
+
+- **Himanshu Dahiya** ([@Bored008](https://github.com/Bored008)) — In-Memory DAG architecture (NetworkX), SQLite WAL event store, real-time WebSocket hub, and React Flow visual dashboard.
+- **Mohit Jangra** ([@mohitjangra997](https://github.com/mohitjangra997)) — Google Antigravity adapter, zero-ceremony CLI workflow, multi-agent game state machine, and comprehensive test suite validation.
+
+---
+
 ## 📜 License
 MIT License.
