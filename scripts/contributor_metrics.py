@@ -33,9 +33,17 @@ def scan_workspace_summary(root_dir: str = ".") -> Dict[str, Any]:
 
 
 def main() -> int:
-    print(f"OmniHarness Metrics Utility v{get_version()}")
+    import datetime
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print("=" * 50)
+    print(f"  OmniHarness Metrics Utility v{get_version()}")
+    print(f"  Timestamp: {now_str}")
+    print("=" * 50)
     summary = scan_workspace_summary()
-    print(f"Scanned: {summary['python_files']} Python files, {summary['markdown_files']} Markdown files")
+    print(f"  • Python Modules  : {summary['python_files']}")
+    print(f"  • Documentation   : {summary['markdown_files']}")
+    print("=" * 50)
+    print("  Status: Complete")
     return 0
 
 
