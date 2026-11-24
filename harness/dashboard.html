@@ -840,7 +840,7 @@ Short CLI (if inside repo; save server once with `connect`):
       letter-spacing: 0.2px;
       text-transform: uppercase;
     }
-    .status-chip.pending  { color: var(--text-primary); }
+    .status-chip.pending  { color: var(--accent-blue); }
     .status-chip.progress { color: var(--accent-amber); }
     .status-chip.complete { color: var(--accent-green); }
     .status-chip.conflict { color: var(--accent-red); }
@@ -1497,16 +1497,65 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       }
     }
 
-    function getStatusTheme(status) {
-      switch (status) {
-        case 'STALE_CONFLICT': return { label: 'CONFLICT', color: '#dc4c4c', borderColor: '#dc4c4c', selBg: '#fdf4f4', chipClass: 'conflict' };
-        case 'IN_PROGRESS':    return { label: 'ACTIVE',   color: '#d97706', borderColor: '#d97706', selBg: '#fffaf0', chipClass: 'progress' };
-        case 'COMPLETED':      return { label: 'COMPLETED',color: '#32866a', borderColor: '#32866a', selBg: '#f5faf7', chipClass: 'complete' };
-        default:               return { label: 'PENDING',  color: '#657080', borderColor: null,      selBg: null,      chipClass: 'pending' };
-      }
+    function isNodeClaimed(node) {
+      return Boolean(node && node.assigned_to && node.assigned_to !== 'unassigned');
     }
 
-    function createTypeIconSvg(type, strokeColor) {
+    function getStatusTheme(node) {
+      const status = typeof node === 'string' ? node : (node && node.status);
+      const claimed = typeof node === 'object' ? isNodeClaimed(node) : false;
+
+      if (status === 'STALE_CONFLICT') {
+        return {
+          key: 'conflict',
+          label: 'CONFLICT',
+          color: '#dc4c4c',
+          lightBorder: '#f2b8b8',
+          hoverBorder: '#e57c7c',
+          borderColor: '#dc4c4c',
+          selBg: '#fdf4f4',
+          chipClass: 'conflict'
+        };
+      }
+      if (status === 'COMPLETED') {
+        return {
+          key: 'completed',
+          label: 'COMPLETED',
+          color: '#32866a',
+          lightBorder: '#a8dcc5',
+          hoverBorder: '#64b995',
+          borderColor: '#32866a',
+          selBg: '#f5faf7',
+          chipClass: 'complete'
+        };
+      }
+      if (status === 'IN_PROGRESS' || claimed) {
+        return {
+          key: 'claimed',
+          label: status === 'IN_PROGRESS' ? 'ACTIVE' : 'CLAIMED',
+          color: '#d97706',
+          lightBorder: '#f7d88c',
+          hoverBorder: '#ebb242',
+          borderColor: '#d97706',
+          selBg: '#fffaf0',
+          chipClass: 'progress'
+        };
+      }
+      return {
+        key: 'unclaimed',
+        label: 'PENDING',
+        color: '#3f7dd8',
+        lightBorder: '#bdd6f7',
+        hoverBorder: '#79a9eb',
+        borderColor: '#3f7dd8',
+        selBg: '#f4f8fe',
+        chipClass: 'pending'
+      };
+    }
+
+    function createTypeIconSvg(node, strokeColor) {
+      const type = typeof node === 'string' ? node : node.type;
+      const statusKey = typeof node === 'object' ? getStatusTheme(node).key : 'completed';
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       const add = (tag, attrs) => {
         const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -1532,7 +1581,21 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         add('path', { d: 'M18 9a9 9 0 0 1-9 9' });
       } else if (type === 'TASK') {
         add('rect', { x: '3', y: '3', width: '18', height: '18', rx: '3' });
-        add('path', { d: 'm9 12 2 2 4-4' });
+        if (statusKey === 'completed') {
+          // Green tick ONLY when completed
+          add('path', { d: 'm9 12 2 2 4-4' });
+        } else if (statusKey === 'claimed') {
+          // Active/claimed clock indicator
+          add('path', { d: 'M12 8v4l2.5 1.5' });
+        } else if (statusKey === 'conflict') {
+          // Conflict alert indicator
+          add('line', { x1: '12', y1: '8', x2: '12', y2: '12.5' });
+          add('line', { x1: '12', y1: '16', x2: '12.01', y2: '16' });
+        } else {
+          // Uncompleted & unclaimed task lines (no checkmark)
+          add('line', { x1: '8', y1: '10', x2: '16', y2: '10' });
+          add('line', { x1: '8', y1: '14', x2: '13', y2: '14' });
+        }
       } else {
         add('path', { d: 'm16.5 9.4-9-5.19' });
         add('path', { d: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' });
@@ -1821,7 +1884,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         if (!pos) return;
 
         const typeTheme = getTypeTheme(node.type);
-        const statusTheme = getStatusTheme(node.status);
+        const statusTheme = getStatusTheme(node);
         const isSelected = selectedNodeId === node.id;
         const isHovered = hoveredNodeId === node.id;
         const isConflict = node.status === 'STALE_CONFLICT';
@@ -1857,8 +1920,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
           : '#ffffff';
         const cardStroke = isSelected
           ? (statusTheme.borderColor || typeTheme.color)
-          : (isConflict ? '#e69b9b' : (isHovered ? '#b8c2d0' : '#e5e8ed'));
-        const strokeWidth = isSelected ? '1.5' : '1';
+          : (isHovered ? statusTheme.hoverBorder : statusTheme.lightBorder);
+        const strokeWidth = isSelected ? '1.75' : '1.25';
 
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         rect.setAttribute('width', pos.width);
@@ -1871,9 +1934,10 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         g.appendChild(rect);
 
         // Row 1: Type Icon (left) + Status label (right)
+        const iconColor = node.type === 'TASK' ? statusTheme.color : (isConflict ? '#dc4c4c' : typeTheme.color);
         const iconWrap = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         iconWrap.setAttribute('transform', 'translate(12, 12)');
-        iconWrap.appendChild(createTypeIconSvg(node.type, isConflict ? '#dc4c4c' : typeTheme.color));
+        iconWrap.appendChild(createTypeIconSvg(node, iconColor));
         g.appendChild(iconWrap);
 
         const statusTxt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -1932,7 +1996,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
           if (!draggingNodeId) {
             hoveredNodeId = node.id;
             if (!isSelected) {
-              rect.setAttribute('stroke', isConflict ? '#dc4c4c' : '#b8c2d0');
+              rect.setAttribute('stroke', statusTheme.hoverBorder);
               rect.setAttribute('filter', isConflict ? 'url(#card-shadow-conflict)' : 'url(#card-shadow-hover)');
             }
           }
@@ -1942,7 +2006,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
           if (hoveredNodeId === node.id) {
             hoveredNodeId = null;
             if (!isSelected) {
-              rect.setAttribute('stroke', isConflict ? '#e69b9b' : '#e5e8ed');
+              rect.setAttribute('stroke', statusTheme.lightBorder);
               rect.setAttribute('filter', isConflict ? 'url(#card-shadow-conflict)' : 'url(#card-shadow)');
             }
           }
@@ -1993,7 +2057,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       renderDAG();
 
       const typeTheme = getTypeTheme(node.type);
-      const statusTheme = getStatusTheme(node.status);
+      const statusTheme = getStatusTheme(node);
 
       const pill = document.getElementById('drawer-type-pill');
       pill.textContent = node.type;
