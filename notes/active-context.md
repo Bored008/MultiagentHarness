@@ -67,16 +67,18 @@
 - [x] **Agent-Native Protocol & One-Command Adapter CLI**: Added `harness/seeds.py` + `POST /api/seed/{template}` + `GET /api/tasks/ready` + `GET /llms.txt` / `GET /agent` in `harness/server.py`; kept `harness/dashboard.html` clean with only the empty-graph reset fix and a zero-UI `OMNIHARNESS AGENT PROTOCOL` HTML comment; extracted shared `adapters/cli.py` with `connect`, `tasks`, `start`, `done`, `seed`, `reset` + `.omniharness.json`/env config resolution across all 3 adapters; documented the 3-line agent workflow in `AGENTS.md`.
 
 - [x] **Figma Dashboard Consistency & Viewability Redesign**: Updated [harness/dashboard.html](file:///c:/Project/MultiagentHarness/harness/dashboard.html) to match Figma frame `7:2` (`tLMMvLQEAJ7u2mNhfUAqXO`): `#fafbfd` dot-grid canvas, 3-row node cards (`188x88px`), orthogonal stepped & dashed skip-level dependency routing, clickable Type/Status sidebar filters, collapsible Right Inspector Drawer, Help modal, `fitGraph()` zoom-to-fit, and dynamic non-destructive `Simulate Blast` preview.
+- [x] **Zero-Overhead Snapshot Export/Import & Startup Hydration**: Added `GraphSnapshot` (`harness/models.py`), `list_events` / `export_snapshot` / idempotent `import_snapshot` (`harness/store.py` & `harness/graph.py`), `GET /api/export` + `POST /api/import` + `OMNIHARNESS_SNAPSHOT_FILE` empty-DB startup hydration (`harness/server.py`), and `export` / `import [--merge]` CLI commands (`adapters/cli.py`).
 
 ### 5. Next Steps for Demonstration & Deployment
-1. **Push & Deploy to Render**: Push updated `main` so `https://multiagentharness.onrender.com` serves `/llms.txt`, `/agent`, `/api/seed/{template}`, `/api/tasks/ready`, and the Figma-aligned `dashboard.html`.
-2. **Agent-First Flow**: Point any coding agent at `https://multiagentharness.onrender.com/llms.txt` (or tell it in the repo to claim and complete a task using `AGENTS.md` / `adapters/cli.py`), then watch the live DAG update cleanly on `/dashboard`.
+1. **Export Before Pushing (Optional)**: Run `python -m adapters.codex_adapter export snapshot.json` against the live server before `git push` if you want to restore live history after Render rebuilds (`import snapshot.json`), or set `OMNIHARNESS_SNAPSHOT_FILE` to auto-seed an empty ephemeral container on boot.
+2. **Push & Deploy to Render**: Push updated `main` so `https://multiagentharness.onrender.com` serves `/llms.txt`, `/agent`, `/api/export`, `/api/import`, `/api/seed/{template}`, `/api/tasks/ready`, and the Figma-aligned `dashboard.html`.
+3. **Agent-First Flow**: Point any coding agent at `https://multiagentharness.onrender.com/llms.txt` (or tell it in the repo to claim and complete a task using `AGENTS.md` / `adapters/cli.py`), then watch the live DAG update cleanly on `/dashboard`.
 
 ---
 
-### 6. Clean Handoff Snapshot (2026-11-24 23:57 IST)
+### 6. Clean Handoff Snapshot (2026-11-25 02:00 IST)
 - **Live Server**: `https://multiagentharness.onrender.com` (`/dashboard`, `/llms.txt`, `/agent`, `/docs`, `/health`)
-- **Latest Pushed Commit**: `a0c78e6` on `origin/main` (local improvements ready to commit & push)
-- **Files Created/Modified in Session**: `AGENTS.md`, `harness/seeds.py`, `harness/models.py`, `harness/server.py`, `harness/dashboard.html`, `adapters/cli.py`, `adapters/claude_adapter.py`, `adapters/codex_adapter.py`, `adapters/agy_adapter.py`, `scripts/seed_tictactoe.py`, `scripts/seed_demo.py`, `tests/test_server.py`, `tests/test_adapters.py`, `notes/active-context.md`, `notes/daily/2026-11-24.md`
-- **Verification**: `python -m pytest -q` (75/75 passed), `node --check` on extracted dashboard `<script>`, and headless browser visual verification at `1400x820` against Figma `7:2` (0 console errors).
+- **Latest Pushed Commit**: `dc7b5ab` on `origin/main` (local improvements ready to commit & push)
+- **Files Created/Modified in Session**: `harness/models.py`, `harness/store.py`, `harness/graph.py`, `harness/server.py`, `adapters/cli.py`, `tests/test_store.py`, `tests/test_server.py`, `tests/test_adapters.py`, `notes/active-context.md`, `notes/daily/2026-11-25.md`
+- **Verification**: `python -m pytest -q` (80 passed in 8.45s).
 - **Next Actions**: Commit and push local changes to `origin/main` so Render auto-deploys `/llms.txt`, `/api/seed/{template}`, and the clean `dashboard.html`.

@@ -825,6 +825,7 @@ def test_three_way_cli_parser_symmetry():
     expected_commands = {
         "connect", "tasks", "start", "done", "seed", "reset",
         "claim", "subgraph", "context", "submit", "listen", "graph",
+        "export", "import",
     }
     assert set(sub_claude.choices.keys()) == set(sub_codex.choices.keys()) == set(sub_agy.choices.keys())
     assert expected_commands.issubset(set(sub_claude.choices.keys()))
@@ -1057,3 +1058,94 @@ def test_cli_tasks_start_done_seed_reset_shortcuts(tmp_path, monkeypatch, capsys
 
     assert codex_main(["reset"]) == 0
     assert "successfully reset" in capsys.readouterr().out
+
+
+def test_cli_export_and_import_commands(tmp_path, monkeypatch, capsys):
+    """Verify `export` (stdout, positional file, --file) and `import` (replace and --merge)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OMNIHARNESS_SERVER", raising=False)
+    monkeypatch.delenv("OMNIHARNESS_AGENT_ID", raising=False)
+
+    snapshot_payload = {
+        "version": 1,
+        "exported_at": 1700000000.0,
+        "nodes": [{"id": "REQ-01", "title": "Spec", "type": "REQUIREMENT", "status": "PENDING"}],
+        "edges": [],
+        "events": [
+            {
+                "event_id": "evt-1",
+                "idempotency_key": "ik-1",
+                "event_type": "NODE_CREATED",
+                "node_id": "REQ-01",
+                "actor": "system",
+                "data": {},
+                "timestamp": 1700000000.0,
+            }
+        ],
+    }
+    import_calls: List[Dict[str, Any]] = []
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/export":
+            return httpx.Response(200, json=snapshot_payload)
+        if request.url.path == "/api/import":
+            import_calls.append({
+                "query": str(request.url.query),
+                "body": json.loads(request.read().decode()),
+            })
+            return httpx.Response(200, json={
+                "status": "success",
+                "nodes_imported": 1,
+                "edges_imported": 0,
+                "events_imported": 1,
+                "total_nodes": 1,
+                "total_edges": 0,
+            })
+        return httpx.Response(404)
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(mock_handler), base_url="http://localhost:8000")
+    for cls, default_id in (
+        (ClaudeCodeAdapter, "claude-code-cli"),
+        (CodexAdapter, "openai-codex-cursor"),
+        (AntigravityAdapter, "antigravity-agent"),
+    ):
+        monkeypatch.setattr(
+            cls,
+            "__init__",
+            lambda self, agent_id=default_id, server_url="http://localhost:8000", ws_url=None, client=None, _cls=cls: super(
+                _cls, self
+            ).__init__(agent_id=agent_id, server_url=server_url, client=mock_client),
+        )
+
+    # 1. `export` without file prints JSON to stdout
+    assert agy_main(["export"]) == 0
+    stdout_snap = json.loads(capsys.readouterr().out)
+    assert stdout_snap["nodes"][0]["id"] == "REQ-01"
+
+    # 2. `export` with --file and positional file writes snapshot JSON to disk
+    snap_via_flag = tmp_path / "snapshots" / "flag.json"
+    assert claude_main(["export", "--file", str(snap_via_flag)]) == 0
+    assert "Exported snapshot (1 nodes, 0 edges, 1 events)" in capsys.readouterr().out
+    assert json.loads(snap_via_flag.read_text(encoding="utf-8"))["events"][0]["event_id"] == "evt-1"
+
+    snap_via_pos = tmp_path / "pos.json"
+    assert codex_main(["export", str(snap_via_pos), "--json"]) == 0
+    export_meta = json.loads(capsys.readouterr().out)
+    assert export_meta["exported"] is True
+    assert json.loads(snap_via_pos.read_text(encoding="utf-8"))["nodes"][0]["id"] == "REQ-01"
+
+    # 3. `import` posts snapshot with replace=true by default
+    assert claude_main(["import", str(snap_via_pos)]) == 0
+    assert "Successfully imported snapshot" in capsys.readouterr().out
+    assert "replace=true" in import_calls[0]["query"]
+    assert import_calls[0]["body"]["nodes"][0]["id"] == "REQ-01"
+
+    # 4. `import --merge` sets replace=false
+    assert codex_main(["import", str(snap_via_pos), "--merge", "--json"]) == 0
+    merge_out = json.loads(capsys.readouterr().out)
+    assert merge_out["status"] == "success"
+    assert "replace=false" in import_calls[1]["query"]
+
+    # 5. `import` with missing file returns exit code 1
+    assert agy_main(["import", str(tmp_path / "missing.json")]) == 1
+    assert "Snapshot file not found" in capsys.readouterr().err

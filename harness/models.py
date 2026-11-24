@@ -111,3 +111,13 @@ class GraphStateResponse(BaseModel):
     nodes: List[Node]
     edges: List[Edge]
     stats: Dict[str, int]
+
+
+class GraphSnapshot(BaseModel):
+    """Portable snapshot of DAG nodes, dependency edges, and full event history."""
+
+    version: int = 1
+    exported_at: float = Field(default_factory=time.time)
+    nodes: List[Node] = Field(default_factory=list)
+    edges: List[Edge] = Field(default_factory=list)
+    events: List[Event] = Field(default_factory=list)

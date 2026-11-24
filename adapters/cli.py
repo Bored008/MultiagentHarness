@@ -405,6 +405,41 @@ def build_adapter_parser(
         help="Retrieve full knowledge graph state",
     )
 
+    # Export command
+    export_p = subparsers.add_parser(
+        "export",
+        parents=[sub_common],
+        help="Export full knowledge graph and event history as JSON snapshot",
+    )
+    export_p.add_argument(
+        "file",
+        nargs="?",
+        default=None,
+        help="Destination JSON file path (writes to stdout if omitted)",
+    )
+    export_p.add_argument(
+        "--file",
+        dest="file_flag",
+        default=None,
+        help="Destination JSON file path (alternative to positional file)",
+    )
+
+    # Import command
+    import_p = subparsers.add_parser(
+        "import",
+        parents=[sub_common],
+        help="Import a JSON snapshot into OmniHarness",
+    )
+    import_p.add_argument(
+        "file",
+        help="Path to snapshot JSON file to import",
+    )
+    import_p.add_argument(
+        "--merge",
+        action="store_true",
+        help="Merge snapshot into existing graph instead of replacing (replace=false)",
+    )
+
     return parser
 
 
@@ -648,6 +683,66 @@ def run_adapter_cli(
         elif args.command == "graph":
             res = adapter.get_graph()
             print(json.dumps(res, indent=2))
+            return 0
+
+        elif args.command == "export":
+            res = adapter.client.get("/api/export")
+            res.raise_for_status()
+            data = res.json()
+            target_file = getattr(args, "file_flag", None) or getattr(args, "file", None)
+            if target_file:
+                out_path = Path(target_file)
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+                if as_json:
+                    print(
+                        json.dumps(
+                            {
+                                "exported": True,
+                                "file": str(out_path),
+                                "nodes": len(data.get("nodes", [])),
+                                "edges": len(data.get("edges", [])),
+                                "events": len(data.get("events", [])),
+                            },
+                            indent=2,
+                        )
+                    )
+                else:
+                    print(
+                        f"[{adapter_name}] Exported snapshot "
+                        f"({len(data.get('nodes', []))} nodes, "
+                        f"{len(data.get('edges', []))} edges, "
+                        f"{len(data.get('events', []))} events) to {out_path}"
+                    )
+            else:
+                print(json.dumps(data, indent=2))
+            return 0
+
+        elif args.command == "import":
+            in_path = Path(args.file)
+            if not in_path.is_file():
+                _print_error(f"Snapshot file not found: {in_path}", 0, as_json)
+                return 1
+            snapshot_payload = json.loads(in_path.read_text(encoding="utf-8"))
+            replace_flag = "false" if getattr(args, "merge", False) else "true"
+            res = adapter.client.post(
+                "/api/import",
+                params={"replace": replace_flag},
+                json=snapshot_payload,
+            )
+            res.raise_for_status()
+            data = res.json()
+            if as_json:
+                print(json.dumps(data, indent=2))
+            else:
+                mode = "merged" if getattr(args, "merge", False) else "imported"
+                print(
+                    f"[{adapter_name}] Successfully {mode} snapshot from {in_path} "
+                    f"({data.get('nodes_imported', 0)} nodes, "
+                    f"{data.get('edges_imported', 0)} edges, "
+                    f"{data.get('events_imported', 0)} events; "
+                    f"total: {data.get('total_nodes', 0)} nodes, {data.get('total_edges', 0)} edges)"
+                )
             return 0
 
     except httpx.HTTPStatusError as http_exc:

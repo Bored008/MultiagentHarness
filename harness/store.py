@@ -10,7 +10,60 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from harness.models import Edge, Event, Node, NodeStatus, NodeType
+from harness.models import Edge, Event, GraphSnapshot, Node, NodeStatus, NodeType
+
+_UPSERT_NODE_SQL = """
+INSERT INTO nodes (id, title, type, status, assigned_to, version, payload_json, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    title=excluded.title,
+    type=excluded.type,
+    status=excluded.status,
+    assigned_to=excluded.assigned_to,
+    version=excluded.version,
+    payload_json=excluded.payload_json,
+    updated_at=excluded.updated_at
+"""
+
+
+def _node_params(node: Node) -> Tuple[Any, ...]:
+    return (
+        node.id,
+        node.title,
+        node.type.value if hasattr(node.type, "value") else str(node.type),
+        node.status.value if hasattr(node.status, "value") else str(node.status),
+        node.assigned_to,
+        node.version,
+        json.dumps(node.payload),
+        node.created_at,
+        node.updated_at,
+    )
+
+
+def _row_to_node(row: sqlite3.Row) -> Node:
+    return Node(
+        id=row["id"],
+        title=row["title"],
+        type=NodeType(row["type"]),
+        status=NodeStatus(row["status"]),
+        assigned_to=row["assigned_to"],
+        version=row["version"],
+        payload=json.loads(row["payload_json"]),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _row_to_event(row: sqlite3.Row) -> Event:
+    return Event(
+        event_id=row["event_id"],
+        idempotency_key=row["idempotency_key"],
+        event_type=row["event_type"],
+        node_id=row["node_id"],
+        actor=row["actor"],
+        data=json.loads(row["data_json"]),
+        timestamp=row["timestamp"],
+    )
 
 
 class EventStore:
@@ -143,66 +196,17 @@ class EventStore:
 
     def upsert_node(self, node: Node) -> None:
         with self._get_connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO nodes (id, title, type, status, assigned_to, version, payload_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    title=excluded.title,
-                    type=excluded.type,
-                    status=excluded.status,
-                    assigned_to=excluded.assigned_to,
-                    version=excluded.version,
-                    payload_json=excluded.payload_json,
-                    updated_at=excluded.updated_at
-                """,
-                (
-                    node.id,
-                    node.title,
-                    node.type.value if hasattr(node.type, "value") else str(node.type),
-                    node.status.value if hasattr(node.status, "value") else str(node.status),
-                    node.assigned_to,
-                    node.version,
-                    json.dumps(node.payload),
-                    node.created_at,
-                    node.updated_at
-                )
-            )
+            conn.execute(_UPSERT_NODE_SQL, _node_params(node))
 
     def get_node(self, node_id: str) -> Optional[Node]:
         with self._get_connection() as conn:
             row = conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,)).fetchone()
-            if not row:
-                return None
-            return Node(
-                id=row["id"],
-                title=row["title"],
-                type=NodeType(row["type"]),
-                status=NodeStatus(row["status"]),
-                assigned_to=row["assigned_to"],
-                version=row["version"],
-                payload=json.loads(row["payload_json"]),
-                created_at=row["created_at"],
-                updated_at=row["updated_at"]
-            )
+            return _row_to_node(row) if row else None
 
     def list_nodes(self) -> List[Node]:
         with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM nodes ORDER BY created_at ASC").fetchall()
-            return [
-                Node(
-                    id=row["id"],
-                    title=row["title"],
-                    type=NodeType(row["type"]),
-                    status=NodeStatus(row["status"]),
-                    assigned_to=row["assigned_to"],
-                    version=row["version"],
-                    payload=json.loads(row["payload_json"]),
-                    created_at=row["created_at"],
-                    updated_at=row["updated_at"]
-                )
-                for row in rows
-            ]
+            return [_row_to_node(row) for row in rows]
 
     def add_edge(self, source: str, target: str, relation: str = "relies_on") -> None:
         with self._get_connection() as conn:
@@ -228,18 +232,82 @@ class EventStore:
                 "SELECT * FROM events WHERE node_id = ? ORDER BY timestamp ASC",
                 (node_id,)
             ).fetchall()
-            return [
-                Event(
-                    event_id=row["event_id"],
-                    idempotency_key=row["idempotency_key"],
-                    event_type=row["event_type"],
-                    node_id=row["node_id"],
-                    actor=row["actor"],
-                    data=json.loads(row["data_json"]),
-                    timestamp=row["timestamp"]
+            return [_row_to_event(row) for row in rows]
+
+    def list_events(self) -> List[Event]:
+        """Return all persisted events ordered chronologically by timestamp ASC."""
+        with self._get_connection() as conn:
+            rows = conn.execute("SELECT * FROM events ORDER BY timestamp ASC").fetchall()
+            return [_row_to_event(row) for row in rows]
+
+    def export_snapshot(self) -> GraphSnapshot:
+        """Export all nodes, edges, and events as a portable GraphSnapshot."""
+        with self._get_connection() as conn:
+            node_rows = conn.execute("SELECT * FROM nodes ORDER BY created_at ASC").fetchall()
+            edge_rows = conn.execute("SELECT * FROM edges").fetchall()
+            event_rows = conn.execute("SELECT * FROM events ORDER BY timestamp ASC").fetchall()
+            return GraphSnapshot(
+                nodes=[_row_to_node(row) for row in node_rows],
+                edges=[
+                    Edge(source=row["source"], target=row["target"], relation=row["relation"])
+                    for row in edge_rows
+                ],
+                events=[_row_to_event(row) for row in event_rows],
+            )
+
+    def import_snapshot(
+        self,
+        nodes: List[Node],
+        edges: List[Edge],
+        events: List[Event],
+        replace: bool = True,
+    ) -> Dict[str, int]:
+        """
+        Atomically import nodes, edges, and events in a single SQLite transaction.
+        Re-imports are idempotent on event_id and idempotency_key via INSERT OR IGNORE.
+        """
+        with self._get_connection() as conn:
+            if replace:
+                conn.execute("DELETE FROM edges;")
+                conn.execute("DELETE FROM events;")
+                conn.execute("DELETE FROM nodes;")
+
+            for node in nodes:
+                conn.execute(_UPSERT_NODE_SQL, _node_params(node))
+
+            for edge in edges:
+                conn.execute(
+                    "INSERT OR IGNORE INTO edges (source, target, relation) VALUES (?, ?, ?)",
+                    (edge.source, edge.target, edge.relation),
                 )
-                for row in rows
-            ]
+
+            inserted_events = 0
+            for event in events:
+                cur = conn.execute(
+                    """
+                    INSERT OR IGNORE INTO events (event_id, idempotency_key, event_type, node_id, actor, data_json, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.event_id,
+                        event.idempotency_key,
+                        event.event_type,
+                        event.node_id,
+                        event.actor,
+                        json.dumps(event.data),
+                        event.timestamp,
+                    ),
+                )
+                if cur.rowcount > 0:
+                    inserted_events += cur.rowcount
+
+            conn.commit()
+
+        return {
+            "nodes_imported": len(nodes),
+            "edges_imported": len(edges),
+            "events_imported": inserted_events,
+        }
 
     def clear(self) -> None:
         """Clear all stored nodes, edges, and events for clean test/demo runs."""

@@ -12,7 +12,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from harness.models import Node, NodeStatus, NodeType
+from harness.models import Edge, Event, GraphSnapshot, Node, NodeStatus, NodeType
 from harness.server import (
     EVENT_BLAST_RADIUS_ALERT,
     EVENT_CONFLICT_DETECTED,
@@ -688,3 +688,160 @@ def test_agent_protocol_endpoints_and_dashboard_comment(client):
     dash = client.get("/dashboard")
     assert dash.status_code == 200
     assert "OMNIHARNESS AGENT PROTOCOL" in dash.text
+
+
+# -------------------------------------------------------------
+# Snapshot Export / Import & Startup Hydration Tests
+# -------------------------------------------------------------
+
+def test_export_reset_import_roundtrip_and_idempotency(client):
+    """Verify export -> reset -> import roundtrip restores nodes, edges, and /events history idempotently."""
+    client.post("/tasks", json={"id": "SNAP-REQ", "title": "Req", "type": "REQUIREMENT", "idempotency_key": "ik-sr"})
+    client.post("/tasks", json={
+        "id": "SNAP-TSK",
+        "title": "Task",
+        "type": "TASK",
+        "dependencies": ["SNAP-REQ"],
+        "idempotency_key": "ik-st",
+    })
+    client.post("/tasks/SNAP-TSK/claim", json={"agent_id": "claude", "idempotency_key": "ik-sc"})
+    client.post("/tasks/SNAP-TSK/submit", json={
+        "agent_id": "claude",
+        "idempotency_key": "ik-ss",
+        "output": {"summary": "implemented"},
+    })
+
+    export_resp = client.get("/api/export")
+    assert export_resp.status_code == 200
+    snapshot = export_resp.json()
+    assert snapshot["version"] == 1
+    assert {n["id"] for n in snapshot["nodes"]} == {"SNAP-REQ", "SNAP-TSK"}
+    assert len(snapshot["edges"]) == 1
+    assert len(snapshot["events"]) == 4
+
+    # /export alias matches /api/export
+    assert len(client.get("/export").json()["nodes"]) == 2
+
+    # Reset clears graph and event lineage
+    assert client.post("/api/reset").status_code == 200
+    assert client.get("/api/graph").json()["nodes"] == []
+    assert client.get("/api/nodes/SNAP-TSK/events").json() == []
+
+    # Import restores state, full event history, and broadcasts GRAPH_IMPORTED
+    with client.websocket_connect("/ws") as ws:
+        _ = ws.receive_json()  # Handshake
+        import_resp = client.post("/api/import", json=snapshot)
+        assert import_resp.status_code == 200
+        body = import_resp.json()
+        assert body["status"] == "success"
+        assert body["nodes_imported"] == 2
+        assert body["edges_imported"] == 1
+        assert body["events_imported"] == 4
+        assert body["total_nodes"] == 2
+        assert body["total_edges"] == 1
+
+        ws_msg = ws.receive_json()
+        assert ws_msg["event"] == "GRAPH_IMPORTED"
+        assert ws_msg["data"]["total_nodes"] == 2
+
+    restored_graph = client.get("/api/graph").json()
+    assert {n["id"] for n in restored_graph["nodes"]} == {"SNAP-REQ", "SNAP-TSK"}
+    assert restored_graph["edges"][0]["source"] == "SNAP-REQ"
+    assert restored_graph["edges"][0]["target"] == "SNAP-TSK"
+
+    events = client.get("/api/nodes/SNAP-TSK/events").json()
+    assert [e["event_type"] for e in events] == ["NODE_CREATED", "TASK_CLAIMED", "TASK_SUBMITTED"]
+
+    # Re-importing with replace=false is idempotent on event history
+    reimport_resp = client.post("/api/import?replace=false", json=snapshot)
+    assert reimport_resp.status_code == 200
+    assert reimport_resp.json()["events_imported"] == 0
+    assert len(client.get("/api/nodes/SNAP-TSK/events").json()) == 3
+
+
+def test_import_rejects_cyclic_and_dangling_snapshots_without_corruption(client):
+    """Verify cyclic (400) and dangling-edge (404) imports fail cleanly without altering existing graph."""
+    client.post("/tasks", json={"id": "KEEP-01", "title": "Keep Me", "type": "TASK"})
+
+    cyclic_snapshot = {
+        "version": 1,
+        "nodes": [
+            {"id": "CYC-A", "title": "A", "type": "TASK"},
+            {"id": "CYC-B", "title": "B", "type": "TASK"},
+        ],
+        "edges": [
+            {"source": "CYC-A", "target": "CYC-B", "relation": "relies_on"},
+            {"source": "CYC-B", "target": "CYC-A", "relation": "relies_on"},
+        ],
+        "events": [],
+    }
+    cyc_resp = client.post("/api/import", json=cyclic_snapshot)
+    assert cyc_resp.status_code == 400
+    assert "cyclic" in cyc_resp.json()["detail"].lower()
+
+    # Existing graph must be untouched
+    current_ids = [n["id"] for n in client.get("/api/graph").json()["nodes"]]
+    assert current_ids == ["KEEP-01"]
+
+    dangling_snapshot = {
+        "version": 1,
+        "nodes": [{"id": "ONLY-A", "title": "Only A", "type": "TASK"}],
+        "edges": [{"source": "ONLY-A", "target": "MISSING-B", "relation": "relies_on"}],
+        "events": [],
+    }
+    dang_resp = client.post("/import", json=dangling_snapshot)
+    assert dang_resp.status_code == 404
+    assert "MISSING-B" in dang_resp.json()["detail"]
+
+    current_ids_after = [n["id"] for n in client.get("/api/graph").json()["nodes"]]
+    assert current_ids_after == ["KEEP-01"]
+
+
+def test_startup_snapshot_file_hydrates_empty_db_and_skips_nonempty(tmp_path, monkeypatch):
+    """Verify OMNIHARNESS_SNAPSHOT_FILE hydrates an empty DB on startup and never overwrites a non-empty DB."""
+    db_file = tmp_path / "startup_snap.db"
+    snap_file = tmp_path / "initial_snapshot.json"
+    other_snap_file = tmp_path / "other_snapshot.json"
+
+    initial_snapshot = GraphSnapshot(
+        nodes=[
+            Node(id="BOOT-REQ", title="Boot Req", type=NodeType.REQUIREMENT),
+            Node(id="BOOT-TSK", title="Boot Task", type=NodeType.TASK, status=NodeStatus.COMPLETED),
+        ],
+        edges=[Edge(source="BOOT-REQ", target="BOOT-TSK")],
+        events=[
+            Event(
+                event_id="evt-boot-1",
+                idempotency_key="ik-boot-1",
+                event_type="NODE_CREATED",
+                node_id="BOOT-TSK",
+                actor="seed",
+                data={"boot": True},
+            )
+        ],
+    )
+    snap_file.write_text(initial_snapshot.model_dump_json(indent=2), encoding="utf-8")
+
+    monkeypatch.setenv("OMNIHARNESS_SNAPSHOT_FILE", str(snap_file))
+    first_app = create_app(db_path=str(db_file))
+    with TestClient(first_app) as first_client:
+        graph = first_client.get("/api/graph").json()
+        assert {n["id"] for n in graph["nodes"]} == {"BOOT-REQ", "BOOT-TSK"}
+        assert len(graph["edges"]) == 1
+        events = first_client.get("/api/nodes/BOOT-TSK/events").json()
+        assert len(events) == 1
+        assert events[0]["event_id"] == "evt-boot-1"
+
+    # Point to a different snapshot and reboot against the now non-empty DB -> must NOT overwrite
+    other_snapshot = GraphSnapshot(
+        nodes=[Node(id="OTHER-NODE", title="Should Not Overwrite", type=NodeType.TASK)],
+        edges=[],
+        events=[],
+    )
+    other_snap_file.write_text(other_snapshot.model_dump_json(indent=2), encoding="utf-8")
+    monkeypatch.setenv("OMNIHARNESS_SNAPSHOT_FILE", str(other_snap_file))
+
+    second_app = create_app(db_path=str(db_file))
+    with TestClient(second_app) as second_client:
+        graph_after = second_client.get("/api/graph").json()
+        assert {n["id"] for n in graph_after["nodes"]} == {"BOOT-REQ", "BOOT-TSK"}

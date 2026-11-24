@@ -16,6 +16,7 @@ import networkx as nx
 from harness.models import (
     Edge,
     Event,
+    GraphSnapshot,
     GraphStateResponse,
     Node,
     NodeStatus,
@@ -674,3 +675,68 @@ class DAGManager:
                 edges=edges,
                 stats=stats,
             )
+
+    def export_snapshot(self) -> GraphSnapshot:
+        """Export full DAG state and event history as a GraphSnapshot."""
+        with self._lock:
+            if self.store is not None:
+                return self.store.export_snapshot()
+            return GraphSnapshot(
+                nodes=self.list_nodes(),
+                edges=self.list_edges(),
+                events=[],
+            )
+
+    def import_snapshot(self, snapshot: GraphSnapshot, replace: bool = True) -> Dict[str, int]:
+        """
+        Validate and import a GraphSnapshot into the DAG and backing EventStore.
+        Rejects dangling edges (NodeNotFoundError) and cycles (CycleError)
+        before mutating any in-memory or persisted state.
+        """
+        with self._lock:
+            candidate = nx.DiGraph() if replace else self.graph.copy()
+            candidate_ids: Set[str] = set() if replace else set(self._nodes.keys())
+
+            for node in snapshot.nodes:
+                candidate_ids.add(node.id)
+                candidate.add_node(node.id, data=node)
+
+            for edge in snapshot.edges:
+                if edge.source not in candidate_ids:
+                    raise NodeNotFoundError(f"Edge source node '{edge.source}' not found in snapshot.")
+                if edge.target not in candidate_ids:
+                    raise NodeNotFoundError(f"Edge target node '{edge.target}' not found in snapshot.")
+                if edge.source == edge.target:
+                    raise CycleError(f"Self-loop detected: node '{edge.source}' cannot depend on itself.")
+                candidate.add_edge(edge.source, edge.target, relation=edge.relation)
+
+            if not nx.is_directed_acyclic_graph(candidate):
+                cycles = list(nx.simple_cycles(candidate))
+                raise CycleError(f"Snapshot contains cyclic dependencies: {cycles}")
+
+            if self.store is not None:
+                counts = self.store.import_snapshot(
+                    nodes=snapshot.nodes,
+                    edges=snapshot.edges,
+                    events=snapshot.events,
+                    replace=replace,
+                )
+                self.hydrate_from_store()
+            else:
+                self.graph = candidate
+                if replace:
+                    self._nodes = {n.id: n for n in snapshot.nodes}
+                else:
+                    for node in snapshot.nodes:
+                        self._nodes[node.id] = node
+                counts = {
+                    "nodes_imported": len(snapshot.nodes),
+                    "edges_imported": len(snapshot.edges),
+                    "events_imported": 0,
+                }
+
+            return {
+                **counts,
+                "total_nodes": len(self._nodes),
+                "total_edges": self.graph.number_of_edges(),
+            }

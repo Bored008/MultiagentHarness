@@ -31,6 +31,7 @@ from harness.models import (
     CreateNodeRequest,
     Edge,
     Event,
+    GraphSnapshot,
     GraphStateResponse,
     Node,
     NodeStatus,
@@ -103,10 +104,12 @@ def create_app(
     db_path: Optional[str] = None,
     dag_manager: Optional[DAGManager] = None,
     store: Optional[EventStore] = None,
+    snapshot_file: Optional[str] = None,
 ) -> FastAPI:
     """
     Factory function to initialize and configure the OmniHarness FastAPI server.
-    Hydrates in-memory DAG from SQLite store on startup lifespan.
+    Hydrates in-memory DAG from SQLite store on startup lifespan, optionally
+    seeding from a GraphSnapshot file when the store is empty.
     """
     resolved_db_path = db_path if db_path is not None else os.environ.get("OMNIHARNESS_DB_PATH", "omniharness.db")
     st = store or (dag_manager.store if dag_manager and dag_manager.store else EventStore(db_path=resolved_db_path))
@@ -122,6 +125,23 @@ def create_app(
                 dag.hydrate_from_store()
             except Exception as e:
                 logger.warning("DAG hydration error on startup: %s", e)
+
+        resolved_snapshot = (
+            snapshot_file
+            if snapshot_file is not None
+            else os.environ.get("OMNIHARNESS_SNAPSHOT_FILE")
+        )
+        if resolved_snapshot:
+            snap_path = Path(resolved_snapshot)
+            if snap_path.is_file() and len(dag._nodes) == 0:
+                try:
+                    snapshot = GraphSnapshot.model_validate_json(
+                        snap_path.read_text(encoding="utf-8")
+                    )
+                    counts = dag.import_snapshot(snapshot, replace=True)
+                    logger.info("Hydrated initial snapshot from %s: %s", snap_path, counts)
+                except Exception as e:
+                    logger.warning("Snapshot startup import error from %s: %s", snap_path, e)
         yield
         # Shutdown cleanup if needed
 
@@ -573,11 +593,36 @@ def create_app(
             "idempotent_replay": False,
         }
 
-    # 6. GET /graph (and /api/graph)
+    # 6. GET /graph (and /api/graph), GET /export, POST /import
     @app.get("/graph", response_model=GraphStateResponse, status_code=status.HTTP_200_OK)
     @app.get("/api/graph", response_model=GraphStateResponse, status_code=status.HTTP_200_OK)
     async def get_graph():
         return dag.get_graph_state()
+
+    @app.get("/export", response_model=GraphSnapshot, status_code=status.HTTP_200_OK)
+    @app.get("/api/export", response_model=GraphSnapshot, status_code=status.HTTP_200_OK)
+    async def export_snapshot():
+        return dag.export_snapshot()
+
+    @app.post("/import", status_code=status.HTTP_200_OK)
+    @app.post("/api/import", status_code=status.HTTP_200_OK)
+    async def import_snapshot(snapshot: GraphSnapshot, replace: bool = True):
+        async with mutation_lock:
+            try:
+                counts = dag.import_snapshot(snapshot, replace=replace)
+            except CycleError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except NodeNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
+
+        await ws_manager.broadcast({
+            "event": "GRAPH_IMPORTED",
+            "event_type": "GRAPH_IMPORTED",
+            "type": "GRAPH_IMPORTED",
+            "timestamp": time.time(),
+            "data": {"replace": replace, **counts},
+        })
+        return {"status": "success", **counts}
 
     # 7. Supporting endpoints for node listing, single node, and events lineage
     @app.get("/nodes", response_model=List[Node])
