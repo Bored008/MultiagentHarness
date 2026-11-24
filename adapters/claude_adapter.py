@@ -45,6 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="OmniHarness REST server base URL (default: http://localhost:8000)",
     )
     common.add_argument(
+        "--ws-url",
+        default=None,
+        help="Custom WebSocket URL for real-time events (default: derived from --server)",
+    )
+    common.add_argument(
         "--agent-id",
         default="claude-code-cli",
         help="Agent identifier for logging and lease ownership",
@@ -83,6 +88,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Format output directly as markdown agent instructions",
     )
 
+    # Context alias
+    context_p = subparsers.add_parser(
+        "context", parents=[common], help="Alias for subgraph --prompt"
+    )
+    context_p.add_argument("task_id", help="ID of task to inspect")
+
     # Submit command
     submit_p = subparsers.add_parser("submit", parents=[common], help="Submit task completion output")
     submit_p.add_argument("task_id", help="ID of completed task")
@@ -113,6 +124,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Seconds to listen before exiting (default: 10.0)",
     )
 
+    # Graph command
+    subparsers.add_parser(
+        "graph", parents=[common], help="Retrieve full knowledge graph state"
+    )
+
     return parser
 
 
@@ -123,6 +139,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     adapter = ClaudeCodeAdapter(
         agent_id=args.agent_id,
         server_url=args.server,
+        ws_url=getattr(args, "ws_url", None),
     )
 
     try:
@@ -145,6 +162,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             else:
                 data = adapter.get_subgraph(args.task_id)
                 print(json.dumps(data, indent=2))
+            return 0
+
+        elif args.command == "context":
+            prompt_text = adapter.format_context_prompt(args.task_id)
+            print(prompt_text)
             return 0
 
         elif args.command == "submit":
@@ -182,15 +204,37 @@ def main(argv: Optional[List[str]] = None) -> int:
                 conflicts_received.append(evt)
                 print(f"[ALERT] Conflict detected: {evt.get('node_id')} - {evt.get('data')}")
 
-            listener = adapter.listen_for_conflicts(on_conflict)
-            print(f"[ClaudeCodeAdapter] Listening for conflicts on {adapter.ws_url} for {args.timeout}s...")
+            target_ws = getattr(args, "ws_url", None) or adapter.ws_url
+            listener = adapter.listen_for_conflicts(on_conflict, ws_url=target_ws)
+            print(f"[ClaudeCodeAdapter] Listening for conflicts on {target_ws} for {args.timeout}s...")
             time.sleep(args.timeout)
             listener.stop()
             print(f"[ClaudeCodeAdapter] Stopped listening. Total conflicts received: {len(conflicts_received)}")
             return 0
 
+        elif args.command == "graph":
+            res = adapter.get_graph()
+            print(json.dumps(res, indent=2))
+            return 0
+
+    except httpx.HTTPStatusError as http_exc:
+        status_code = http_exc.response.status_code
+        try:
+            detail = http_exc.response.json().get("detail", str(http_exc))
+        except Exception:
+            detail = http_exc.response.text or str(http_exc)
+        if getattr(args, "json", False):
+            print(json.dumps({"error": detail, "status_code": status_code}))
+        else:
+            print(f"[ERROR {status_code}] {detail}", file=sys.stderr)
+        if status_code == 409:
+            return 2  # Conflict exit code
+        return 1
     except Exception as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
+        if getattr(args, "json", False):
+            print(json.dumps({"error": str(exc), "status_code": 500}))
+        else:
+            print(f"[ERROR] {exc}", file=sys.stderr)
         return 1
     finally:
         adapter.close()
