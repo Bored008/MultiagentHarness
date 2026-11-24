@@ -153,6 +153,38 @@ python workflows/omniharness_demo.py
 
 ---
 
+## 🌐 Multi-Laptop Collaboration & Deployment
+
+OmniHarness is designed from the ground up for multi-engineer, multi-laptop hackathon demonstrations:
+
+### Option A: Hosted Cloud Instance (Render)
+- Live deployment: **https://multiagentharness.onrender.com**
+- Connect agents from any machine without local server setup:
+  ```bash
+  python -m adapters.agy_adapter connect https://multiagentharness.onrender.com --agent-id my-laptop-agent
+  ```
+
+### Option B: Local Network / Cloudflare Tunnel
+1. **Start the Uvicorn Server**:
+   ```bash
+   # Windows launcher
+   scripts\server.bat
+   # Or Unix shell
+   python -m uvicorn harness.server:app --host 0.0.0.0 --port 8000 --reload
+   ```
+2. **Expose via Cloudflare Tunnel** (allows remote teammates to connect with SSL and WebSocket support):
+   ```bash
+   scripts\tunnel.bat
+   # Or manually
+   cloudflared tunnel --url http://127.0.0.1:8000
+   ```
+3. **One-Click Seed Demonstration**:
+   ```bash
+   scripts\seed.bat
+   ```
+
+---
+
 ## 📂 Project Structure
 
 ```
