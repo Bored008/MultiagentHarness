@@ -62,7 +62,8 @@
 - [x] **Develop Universal Tool Adapters**: `adapters/claude_adapter.py` and `adapters/codex_adapter.py` subclassing `BaseAgentAdapter` with real-time WebSocket conflict listening and CLI entrypoints.
 - [x] **Build Visual Live Graph UI**: Interactive live dashboard in `harness/dashboard.html` with real-time DAG nodes, amber in-flight leases, pulsing red conflict badges, and audit lineage drawer.
 - [x] **Deterministic 6-Gate Evaluation Workflow**: `workflows/omniharness_demo.py` executing all 6 NexHack gates end-to-end with 100% pass rate.
-- [x] **Comprehensive Test Verification**: 48 passing unit and integration tests across `tests/test_store.py`, `tests/test_graph.py`, `tests/test_server.py`, `tests/test_adapters.py`. Added `/api/reset` and dual `/dashboard` + `/` routes.
+- [x] **Comprehensive Test Verification**: 59 passing unit and integration tests across `tests/test_store.py`, `tests/test_graph.py`, `tests/test_server.py`, `tests/test_adapters.py`. Added `/api/reset` and dual `/dashboard` + `/` routes.
+- [x] **Two-Laptop Testing & Tunnel WSS Auto-Detection**: Added `scripts/seed_demo.py` and `scripts/seed.bat`; updated `dashboard.html` for zero-friction HTTPS/WSS compatibility over Cloudflare tunnels.
 
 ### 5. Next Steps for Demonstration & Deployment
 1. **Live Multi-Laptop Rehearsal**: Launch `uvicorn harness.server:app --port 8000` and expose via `cloudflared tunnel` or `ngrok` for judge evaluation.
