@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniHarness — Multi-Agent Knowledge DAG & Blast Radius Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              900: '#0c4a6e',
+            }
+          },
+          animation: {
+            'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'glow-red': 'glowRed 1.5s ease-in-out infinite alternate',
+            'glow-amber': 'glowAmber 1.5s ease-in-out infinite alternate',
+          },
+          keyframes: {
+            glowRed: {
+              '0%': { boxShadow: '0 0 5px rgba(239, 68, 68, 0.5), inset 0 0 5px rgba(239, 68, 68, 0.2)' },
+              '100%': { boxShadow: '0 0 20px rgba(239, 68, 68, 0.9), inset 0 0 10px rgba(239, 68, 68, 0.4)' },
+            },
+            glowAmber: {
+              '0%': { boxShadow: '0 0 5px rgba(245, 158, 11, 0.5)' },
+              '100%': { boxShadow: '0 0 16px rgba(245, 158, 11, 0.8)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes pulseRing {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.1); opacity: 0.3; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulsing-conflict-ring {
+      animation: pulseRing 1.8s infinite ease-in-out;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-sky-500 selection:text-white">
+
+  <!-- Header Navigation -->
+  <header class="h-16 border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-30">
+    <div class="flex items-center space-x-4">
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-lg tracking-wider text-white shadow-lg shadow-sky-500/20">
+          Ω
+        </div>
+        <div>
+          <h1 class="text-base font-semibold tracking-wide flex items-center gap-2">
+            OmniHarness
+            <span class="text-xs px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 font-mono">NexHack 2.0</span>
+          </h1>
+          <p class="text-xs text-slate-400">Multi-Agent Shared Knowledge DAG & Live Blast-Radius Hub</p>
+        </div>
+      </div>
+
+      <!-- Agent Activity Badges -->
+      <div class="hidden lg:flex items-center space-x-2 pl-4 border-l border-slate-800 text-xs">
+        <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700/60" id="badge-claude">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span class="font-medium text-slate-300">Claude Code CLI</span>
+        </div>
+        <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700/60" id="badge-codex">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span class="font-medium text-slate-300">OpenAI Codex</span>
+        </div>
+        <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700/60" id="badge-antigravity">
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          <span class="font-medium text-slate-300">Antigravity</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry & WS Connection Status -->
+    <div class="flex items-center space-x-4">
+      <div class="flex items-center space-x-2 text-xs font-mono px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800" id="ws-indicator">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" id="ws-dot"></span>
+        <span class="text-slate-300" id="ws-text">WS: CONNECTED</span>
+        <span class="text-slate-500 text-[10px]" id="ws-latency">&lt;25ms</span>
+      </div>
+
+      <button id="btn-refresh" class="text-xs px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center space-x-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        <span>Refresh</span>
+      </button>
+
+      <button id="btn-simulate" class="text-xs px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-sm shadow-indigo-500/30 transition flex items-center space-x-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span>Simulate Gate 4 Blast</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Top Stats Bar -->
+  <div class="bg-slate-900/40 border-b border-slate-800 px-6 py-2.5 grid grid-cols-2 sm:grid-cols-5 gap-4 text-xs font-mono">
+    <div class="flex items-center space-x-2">
+      <span class="text-slate-400">Nodes:</span>
+      <span class="font-semibold text-slate-200" id="stat-total-nodes">0</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <span class="text-sky-400">Requirements:</span>
+      <span class="font-semibold text-sky-300" id="stat-reqs">0</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <span class="text-purple-400">Decisions:</span>
+      <span class="font-semibold text-purple-300" id="stat-decs">0</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <span class="text-amber-400">In-Flight Leases:</span>
+      <span class="font-semibold text-amber-300" id="stat-leases">0</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <span class="text-rose-400 flex items-center gap-1">
+        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+        Conflicts:
+      </span>
+      <span class="font-bold text-rose-300" id="stat-conflicts">0</span>
+    </div>
+  </div>
+
+  <!-- Main DAG Viewport & Sidebar Grid -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- DAG Canvas Container -->
+    <main class="flex-1 relative bg-radial-gradient from-slate-900 to-slate-950 overflow-hidden flex flex-col">
+      <!-- Legend / Controls Floating Overlay -->
+      <div class="absolute top-4 left-4 z-10 flex flex-col space-y-2">
+        <div class="bg-slate-900/90 backdrop-blur border border-slate-800 rounded-lg p-3 text-xs shadow-xl space-y-2 pointer-events-auto">
+          <div class="font-semibold text-slate-300 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+            <span>DAG Node Types</span>
+            <span class="text-[10px] text-slate-500">Auto-Layout</span>
+          </div>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
+            <div class="flex items-center space-x-2">
+              <span class="w-3 h-3 rounded bg-sky-500/20 border border-sky-400"></span>
+              <span class="text-sky-300">REQUIREMENT</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="w-3 h-3 rounded bg-purple-500/20 border border-purple-400"></span>
+              <span class="text-purple-300">DECISION</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="w-3 h-3 rounded bg-blue-500/20 border border-blue-400"></span>
+              <span class="text-blue-300">TASK</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-400"></span>
+              <span class="text-emerald-300">ARTIFACT</span>
+            </div>
+          </div>
+          <div class="pt-1.5 border-t border-slate-800 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+              <span class="text-amber-300">Leased / Active</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+              <span class="text-rose-400 font-bold">Stale Conflict</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zoom / View Controls -->
+      <div class="absolute bottom-4 left-4 z-10 flex items-center space-x-1 bg-slate-900/90 border border-slate-800 rounded-md p-1 shadow-lg text-xs">
+        <button id="btn-zoom-in" class="px-2 py-1 rounded hover:bg-slate-800 text-slate-300">+</button>
+        <button id="btn-zoom-out" class="px-2 py-1 rounded hover:bg-slate-800 text-slate-300">-</button>
+        <button id="btn-reset-zoom" class="px-2 py-1 rounded hover:bg-slate-800 text-slate-300">Reset</button>
+      </div>
+
+      <!-- SVG Graph Layer -->
+      <div id="graph-wrapper" class="w-full h-full cursor-grab active:cursor-grabbing relative overflow-hidden">
+        <svg id="dag-svg" class="w-full h-full select-none">
+          <defs>
+            <linearGradient id="edge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.6"/>
+              <stop offset="100%" stop-color="#818cf8" stop-opacity="0.8"/>
+            </linearGradient>
+            <linearGradient id="edge-conflict-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.9"/>
+              <stop offset="100%" stop-color="#fb7185" stop-opacity="0.9"/>
+            </linearGradient>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+            </marker>
+            <marker id="arrow-conflict" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#f43f5e" />
+            </marker>
+          </defs>
+          <g id="viewport-g">
+            <g id="edges-group"></g>
+            <g id="nodes-group"></g>
+          </g>
+        </svg>
+      </div>
+    </main>
+
+    <!-- Right Slide-out Drawer: Node Details & Evidence Lineage -->
+    <aside id="drawer" class="w-96 border-l border-slate-800 bg-slate-900/95 backdrop-blur flex flex-col transition-all duration-300 z-20 overflow-hidden shadow-2xl">
+      <!-- Drawer Header -->
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900">
+        <div class="flex items-center space-x-2">
+          <div id="drawer-type-pill" class="text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase bg-slate-800 text-slate-300 border border-slate-700">
+            Node
+          </div>
+          <h2 id="drawer-title" class="text-sm font-semibold text-slate-100 truncate max-w-[200px]">Node Inspector</h2>
+        </div>
+        <button id="btn-close-drawer" class="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- Drawer Content -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-5 text-xs">
+        <!-- Node State Summary -->
+        <div class="space-y-2 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+          <div class="flex justify-between items-center text-slate-400">
+            <span>Identifier:</span>
+            <span id="drawer-node-id" class="font-mono text-slate-200 font-semibold select-all">--</span>
+          </div>
+          <div class="flex justify-between items-center text-slate-400">
+            <span>Status:</span>
+            <span id="drawer-node-status" class="font-mono px-2 py-0.5 rounded text-[10px] font-bold">--</span>
+          </div>
+          <div class="flex justify-between items-center text-slate-400">
+            <span>Assigned Agent:</span>
+            <span id="drawer-node-assigned" class="font-medium text-slate-300">--</span>
+          </div>
+          <div class="flex justify-between items-center text-slate-400">
+            <span>Version:</span>
+            <span id="drawer-node-version" class="font-mono text-sky-400">v1</span>
+          </div>
+        </div>
+
+        <!-- Conflict Alert Banner (Conditional) -->
+        <div id="drawer-conflict-box" class="hidden p-3 rounded-lg bg-rose-950/40 border border-rose-500/50 space-y-1.5 animate-glow-red">
+          <div class="flex items-center space-x-2 text-rose-400 font-semibold text-xs">
+            <svg class="w-4 h-4 flex-shrink-0 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <span>Blast Radius Conflict Detected</span>
+          </div>
+          <p id="drawer-conflict-text" class="text-[11px] text-rose-300 leading-relaxed font-mono">
+            Invalidated by upstream specification update.
+          </p>
+        </div>
+
+        <!-- Payload Viewer -->
+        <div class="space-y-1.5">
+          <h3 class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+            <span>Payload / Spec</span>
+            <span class="text-[10px] text-slate-500 font-mono">JSON</span>
+          </h3>
+          <pre id="drawer-payload" class="bg-slate-950 p-3 rounded border border-slate-800 text-[11px] font-mono text-sky-300/90 overflow-x-auto max-h-48 leading-tight">{}</pre>
+        </div>
+
+        <!-- Evidence Lineage & Audit Trail -->
+        <div class="space-y-2">
+          <h3 class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+            <span class="flex items-center space-x-1.5">
+              <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              <span>Evidence Audit Trail</span>
+            </span>
+            <span id="audit-count" class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">0 events</span>
+          </h3>
+          <div id="drawer-audit-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+            <div class="text-slate-500 text-center py-4 italic text-[11px]">No events recorded for this node</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Bottom Realtime WebSocket Event Stream -->
+  <footer class="h-28 border-t border-slate-800 bg-slate-950/90 flex flex-col z-20">
+    <div class="px-4 py-1.5 border-b border-slate-800/80 bg-slate-900/50 flex items-center justify-between text-xs font-mono">
+      <div class="flex items-center space-x-2 text-slate-400">
+        <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
+        <span class="font-semibold text-slate-300">Live Hub Event Log</span>
+        <span class="text-slate-500 text-[10px]">(Append-Only SQLite WAL Broadcast)</span>
+      </div>
+      <div class="text-slate-500 text-[11px]" id="event-stream-status">Listening on /ws/graph...</div>
+    </div>
+    <div id="event-stream" class="flex-1 overflow-y-auto px-4 py-2 font-mono text-[11px] space-y-1">
+      <div class="text-slate-500 italic">Connected to WebSocket hub. Waiting for agent events...</div>
+    </div>
+  </footer>
+
+  <!-- Application Logic & Interactive Visualization -->
+  <script>
+    // State
+    let graphData = { nodes: [], edges: [], stats: {} };
+    let selectedNodeId = null;
+    let ws = null;
+    let pan = { x: 40, y: 40 };
+    let zoom = 1.0;
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+
+    // DOM Elements
+    const svg = document.getElementById('dag-svg');
+    const viewportG = document.getElementById('viewport-g');
+    const nodesGroup = document.getElementById('nodes-group');
+    const edgesGroup = document.getElementById('edges-group');
+    const drawer = document.getElementById('drawer');
+    const eventStream = document.getElementById('event-stream');
+
+    // Sample fallback data for Gate 1-4 demo state when server is not loaded
+    const initialFallbackData = {
+      nodes: [
+        {
+          id: "REQ-01",
+          title: "User Authentication Specification",
+          type: "REQUIREMENT",
+          status: "COMPLETED",
+          assigned_to: "system",
+          version: 2,
+          payload: { spec: "Ed25519 asymmetric auth tokens (v2 update)", algorithm: "Ed25519" },
+          created_at: Date.now() / 1000 - 300,
+          updated_at: Date.now() / 1000 - 30
+        },
+        {
+          id: "DEC-01",
+          title: "JWT Token Architecture Decision",
+          type: "DECISION",
+          status: "COMPLETED",
+          assigned_to: "claude-code",
+          version: 1,
+          payload: { decision: "JWT Token Architecture with 15min expiry" },
+          created_at: Date.now() / 1000 - 240,
+          updated_at: Date.now() / 1000 - 180
+        },
+        {
+          id: "TSK-01",
+          title: "Auth Token Schema & Types",
+          type: "TASK",
+          status: "COMPLETED",
+          assigned_to: "claude-code",
+          version: 1,
+          payload: { output: "Pydantic token validation schemas defined" },
+          created_at: Date.now() / 1000 - 200,
+          updated_at: Date.now() / 1000 - 120
+        },
+        {
+          id: "TSK-02",
+          title: "Token Verifier Middleware",
+          type: "TASK",
+          status: "IN_PROGRESS",
+          assigned_to: "codex-agent",
+          version: 1,
+          payload: { lease: "Leased to OpenAI Codex (Zero-Copy context loaded)" },
+          created_at: Date.now() / 1000 - 160,
+          updated_at: Date.now() / 1000 - 60
+        },
+        {
+          id: "TSK-03",
+          title: "FastAPI Token Verification Route",
+          type: "TASK",
+          status: "STALE_CONFLICT",
+          assigned_to: "claude-code",
+          version: 1,
+          payload: {
+            output: "Route implemented with RS256",
+            conflict: "Upstream requirement REQ-01 updated to Ed25519. Invalidation cascade triggered."
+          },
+          created_at: Date.now() / 1000 - 100,
+          updated_at: Date.now() / 1000 - 10
+        }
+      ],
+      edges: [
+        { source: "DEC-01", target: "REQ-01", relation: "relies_on" },
+        { source: "TSK-01", target: "DEC-01", relation: "relies_on" },
+        { source: "TSK-02", target: "TSK-01", relation: "relies_on" },
+        { source: "TSK-03", target: "DEC-01", relation: "relies_on" }
+      ],
+      stats: {
+        total_nodes: 5,
+        requirements: 1,
+        decisions: 1,
+        tasks: 3,
+        in_progress: 1,
+        conflicts: 1,
+        completed: 3
+      }
+    };
+
+    // Color Helpers
+    function getNodeColors(type, status) {
+      if (status === 'STALE_CONFLICT') {
+        return {
+          fill: '#1e111a',
+          stroke: '#f43f5e',
+          badgeBg: '#881337',
+          badgeText: '#fecdd3',
+          borderClass: 'animate-glow-red'
+        };
+      }
+      if (status === 'IN_PROGRESS') {
+        return {
+          fill: '#1c1917',
+          stroke: '#f59e0b',
+          badgeBg: '#78350f',
+          badgeText: '#fef3c7',
+          borderClass: 'animate-glow-amber'
+        };
+      }
+      switch (type) {
+        case 'REQUIREMENT':
+          return { fill: '#082f49', stroke: '#38bdf8', badgeBg: '#0369a1', badgeText: '#e0f2fe' };
+        case 'DECISION':
+          return { fill: '#2e1065', stroke: '#a855f7', badgeBg: '#6b21a8', badgeText: '#f3e8ff' };
+        case 'TASK':
+          return status === 'COMPLETED'
+            ? { fill: '#064e3b', stroke: '#10b981', badgeBg: '#047857', badgeText: '#d1fae5' }
+            : { fill: '#0f172a', stroke: '#64748b', badgeBg: '#334155', badgeText: '#f1f5f9' };
+        default:
+          return { fill: '#1e293b', stroke: '#94a3b8', badgeBg: '#475569', badgeText: '#ffffff' };
+      }
+    }
+
+    // Graph Layout Calculation (Column / Layered Layout)
+    function layoutGraph(nodes, edges) {
+      const typeCols = {
+        'REQUIREMENT': 0,
+        'DECISION': 1,
+        'TASK': 2,
+        'ARTIFACT': 3
+      };
+
+      const columns = { 0: [], 1: [], 2: [], 3: [] };
+      nodes.forEach(n => {
+        const col = typeCols[n.type] !== undefined ? typeCols[n.type] : 2;
+        columns[col].push(n);
+      });
+
+      const nodePositions = {};
+      const colWidth = 280;
+      const rowHeight = 110;
+      const startX = 60;
+      const startY = 80;
+
+      Object.keys(columns).forEach(colIdx => {
+        const list = columns[colIdx];
+        list.forEach((n, rowIdx) => {
+          nodePositions[n.id] = {
+            x: startX + parseInt(colIdx) * colWidth,
+            y: startY + rowIdx * rowHeight,
+            width: 220,
+            height: 76
+          };
+        });
+      });
+
+      return nodePositions;
+    }
+
+    // Render DAG
+    function renderDAG() {
+      const positions = layoutGraph(graphData.nodes, graphData.edges);
+
+      // Render Edges
+      edgesGroup.innerHTML = '';
+      graphData.edges.forEach(edge => {
+        const srcPos = positions[edge.source];
+        const tgtPos = positions[edge.target];
+        if (!srcPos || !tgtPos) return;
+
+        // Path between nodes (source -> target or target -> source)
+        // Note: relation is 'relies_on': TSK-03 relies_on DEC-01 (target is upstream dependency)
+        const x1 = srcPos.x + srcPos.width / 2;
+        const y1 = srcPos.y + srcPos.height / 2;
+        const x2 = tgtPos.x + tgtPos.width / 2;
+        const y2 = tgtPos.y + tgtPos.height / 2;
+
+        const isConflictEdge = (graphData.nodes.find(n => n.id === edge.source && n.status === 'STALE_CONFLICT') ||
+                                graphData.nodes.find(n => n.id === edge.target && n.status === 'STALE_CONFLICT'));
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const dx = Math.abs(x2 - x1) * 0.5;
+        const d = `M ${x1} ${y1} C ${x1 - dx} ${y1}, ${x2 + dx} ${y2}, ${x2} ${y2}`;
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', isConflictEdge ? '#f43f5e' : '#475569');
+        path.setAttribute('stroke-width', isConflictEdge ? '2.5' : '1.5');
+        if (isConflictEdge) {
+          path.setAttribute('stroke-dasharray', '5 4');
+          path.setAttribute('marker-end', 'url(#arrow-conflict)');
+        } else {
+          path.setAttribute('marker-end', 'url(#arrow)');
+        }
+        edgesGroup.appendChild(path);
+      });
+
+      // Render Nodes
+      nodesGroup.innerHTML = '';
+      graphData.nodes.forEach(node => {
+        const pos = positions[node.id];
+        if (!pos) return;
+
+        const colors = getNodeColors(node.type, node.status);
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+        g.setAttribute('class', 'cursor-pointer transition-transform hover:scale-[1.02]');
+        g.onclick = () => selectNode(node.id);
+
+        // Conflict Glow or Pulsing Ring
+        if (node.status === 'STALE_CONFLICT') {
+          const pulseRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          pulseRect.setAttribute('x', '-6');
+          pulseRect.setAttribute('y', '-6');
+          pulseRect.setAttribute('width', pos.width + 12);
+          pulseRect.setAttribute('height', pos.height + 12);
+          pulseRect.setAttribute('rx', '14');
+          pulseRect.setAttribute('fill', 'none');
+          pulseRect.setAttribute('stroke', '#f43f5e');
+          pulseRect.setAttribute('stroke-width', '2');
+          pulseRect.setAttribute('opacity', '0.6');
+          pulseRect.setAttribute('class', 'pulsing-conflict-ring');
+          g.appendChild(pulseRect);
+        }
+
+        // Node Card Rect
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('width', pos.width);
+        rect.setAttribute('height', pos.height);
+        rect.setAttribute('rx', '10');
+        rect.setAttribute('fill', colors.fill);
+        rect.setAttribute('stroke', selectedNodeId === node.id ? '#38bdf8' : colors.stroke);
+        rect.setAttribute('stroke-width', selectedNodeId === node.id ? '3' : '1.5');
+        rect.setAttribute('filter', 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4))');
+        g.appendChild(rect);
+
+        // Header Pill Background (Node ID & Type)
+        const headerPill = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        headerPill.setAttribute('x', '10');
+        headerPill.setAttribute('y', '8');
+        headerPill.setAttribute('width', '58');
+        headerPill.setAttribute('height', '18');
+        headerPill.setAttribute('rx', '4');
+        headerPill.setAttribute('fill', colors.badgeBg);
+        g.appendChild(headerPill);
+
+        // Node ID Text
+        const idText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        idText.setAttribute('x', '39');
+        idText.setAttribute('y', '21');
+        idText.setAttribute('text-anchor', 'middle');
+        idText.setAttribute('fill', colors.badgeText);
+        idText.setAttribute('font-size', '10px');
+        idText.setAttribute('font-family', 'monospace');
+        idText.setAttribute('font-weight', 'bold');
+        idText.textContent = node.id;
+        g.appendChild(idText);
+
+        // Status Badge / Agent Pill
+        const statusText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        statusText.setAttribute('x', pos.width - 12);
+        statusText.setAttribute('y', '21');
+        statusText.setAttribute('text-anchor', 'end');
+        statusText.setAttribute('fill', node.status === 'STALE_CONFLICT' ? '#fb7185' : (node.status === 'IN_PROGRESS' ? '#fcd34d' : '#94a3b8'));
+        statusText.setAttribute('font-size', '9px');
+        statusText.setAttribute('font-family', 'monospace');
+        statusText.setAttribute('font-weight', '600');
+        statusText.textContent = node.status === 'STALE_CONFLICT' ? '⚠️ CONFLICT' : (node.status === 'IN_PROGRESS' ? '⚡ LEASED' : node.status);
+        g.appendChild(statusText);
+
+        // Title Text
+        const titleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        titleText.setAttribute('x', '12');
+        titleText.setAttribute('y', '44');
+        titleText.setAttribute('fill', '#f1f5f9');
+        titleText.setAttribute('font-size', '11px');
+        titleText.setAttribute('font-weight', '500');
+        const truncatedTitle = node.title.length > 26 ? node.title.slice(0, 24) + '...' : node.title;
+        titleText.textContent = truncatedTitle;
+        g.appendChild(titleText);
+
+        // Footer Meta: Assigned Actor & Version
+        const metaText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        metaText.setAttribute('x', '12');
+        metaText.setAttribute('y', '62');
+        metaText.setAttribute('fill', '#64748b');
+        metaText.setAttribute('font-size', '9.5px');
+        metaText.setAttribute('font-family', 'monospace');
+        const actor = node.assigned_to ? `@${node.assigned_to}` : 'unassigned';
+        metaText.textContent = `${actor} • v${node.version}`;
+        g.appendChild(metaText);
+
+        nodesGroup.appendChild(g);
+      });
+
+      updateStats();
+    }
+
+    // Stats Bar Update
+    function updateStats() {
+      const total = graphData.nodes.length;
+      const reqs = graphData.nodes.filter(n => n.type === 'REQUIREMENT').length;
+      const decs = graphData.nodes.filter(n => n.type === 'DECISION').length;
+      const leases = graphData.nodes.filter(n => n.status === 'IN_PROGRESS').length;
+      const conflicts = graphData.nodes.filter(n => n.status === 'STALE_CONFLICT').length;
+
+      document.getElementById('stat-total-nodes').textContent = total;
+      document.getElementById('stat-reqs').textContent = reqs;
+      document.getElementById('stat-decs').textContent = decs;
+      document.getElementById('stat-leases').textContent = leases;
+      document.getElementById('stat-conflicts').textContent = conflicts;
+    }
+
+    // Drawer Selection & Lineage Fetch
+    async function selectNode(nodeId) {
+      selectedNodeId = nodeId;
+      const node = graphData.nodes.find(n => n.id === nodeId);
+      if (!node) return;
+
+      renderDAG();
+
+      document.getElementById('drawer-node-id').textContent = node.id;
+      document.getElementById('drawer-title').textContent = node.title;
+      document.getElementById('drawer-type-pill').textContent = node.type;
+      document.getElementById('drawer-node-assigned').textContent = node.assigned_to ? `@${node.assigned_to}` : 'None';
+      document.getElementById('drawer-node-version').textContent = `v${node.version}`;
+
+      const statusEl = document.getElementById('drawer-node-status');
+      statusEl.textContent = node.status;
+      if (node.status === 'STALE_CONFLICT') {
+        statusEl.className = 'font-mono px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40';
+      } else if (node.status === 'IN_PROGRESS') {
+        statusEl.className = 'font-mono px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40';
+      } else if (node.status === 'COMPLETED') {
+        statusEl.className = 'font-mono px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+      } else {
+        statusEl.className = 'font-mono px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300';
+      }
+
+      const conflictBox = document.getElementById('drawer-conflict-box');
+      if (node.status === 'STALE_CONFLICT') {
+        conflictBox.classList.remove('hidden');
+        document.getElementById('drawer-conflict-text').textContent =
+          node.payload && node.payload.conflict ? node.payload.conflict : "Blast-radius invalidation: upstream decision changed.";
+      } else {
+        conflictBox.classList.add('hidden');
+      }
+
+      document.getElementById('drawer-payload').textContent = JSON.stringify(node.payload, null, 2);
+
+      // Fetch audit events
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}/events`);
+        if (res.ok) {
+          const events = await res.json();
+          renderAuditTrail(events);
+        } else {
+          renderFallbackAuditTrail(node);
+        }
+      } catch (e) {
+        renderFallbackAuditTrail(node);
+      }
+    }
+
+    function renderAuditTrail(events) {
+      const container = document.getElementById('drawer-audit-list');
+      const countEl = document.getElementById('audit-count');
+      countEl.textContent = `${events.length} events`;
+      container.innerHTML = '';
+
+      if (events.length === 0) {
+        container.innerHTML = '<div class="text-slate-500 text-center py-4 italic text-[11px]">No events recorded for this node</div>';
+        return;
+      }
+
+      events.forEach(ev => {
+        const div = document.createElement('div');
+        div.className = 'p-2.5 rounded bg-slate-950/70 border border-slate-800/80 space-y-1 font-mono text-[10.5px]';
+
+        let badgeColor = 'bg-sky-500/10 text-sky-400 border-sky-500/30';
+        if (ev.event_type.includes('CONFLICT')) badgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/30';
+        if (ev.event_type.includes('SUBMITTED')) badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+        if (ev.event_type.includes('CLAIMED')) badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+
+        div.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="px-1.5 py-0.5 rounded text-[9.5px] border font-bold ${badgeColor}">${ev.event_type}</span>
+            <span class="text-slate-500 text-[9px]">${new Date(ev.timestamp * 1000).toLocaleTimeString()}</span>
+          </div>
+          <div class="flex items-center space-x-1.5 text-slate-300">
+            <span class="text-slate-500">Actor:</span>
+            <span class="text-sky-300">@${ev.actor}</span>
+          </div>
+          <div class="text-[9.5px] text-slate-400 truncate">
+            <span class="text-slate-600">Key:</span> ${ev.idempotency_key.slice(0, 16)}...
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function renderFallbackAuditTrail(node) {
+      const sampleEvents = [
+        {
+          event_type: "EVENT_NODE_CREATED",
+          actor: "system",
+          timestamp: node.created_at,
+          idempotency_key: `init-${node.id}-001`
+        }
+      ];
+      if (node.status === 'IN_PROGRESS' || node.status === 'COMPLETED' || node.status === 'STALE_CONFLICT') {
+        sampleEvents.push({
+          event_type: "EVENT_TASK_CLAIMED",
+          actor: node.assigned_to || "claude-code",
+          timestamp: node.created_at + 30,
+          idempotency_key: `claim-${node.id}-994`
+        });
+      }
+      if (node.status === 'STALE_CONFLICT') {
+        sampleEvents.push({
+          event_type: "EVENT_CONFLICT_DETECTED",
+          actor: "dag-invalidator",
+          timestamp: node.updated_at,
+          idempotency_key: `conflict-${node.id}-blast-radius`
+        });
+      } else if (node.status === 'COMPLETED') {
+        sampleEvents.push({
+          event_type: "EVENT_TASK_SUBMITTED",
+          actor: node.assigned_to || "codex-agent",
+          timestamp: node.updated_at,
+          idempotency_key: `submit-${node.id}-ok`
+        });
+      }
+      renderAuditTrail(sampleEvents);
+    }
+
+    // Append event to live stream footer
+    function logLiveEvent(event) {
+      const div = document.createElement('div');
+      div.className = 'flex items-center space-x-2 py-0.5 border-b border-slate-900/60';
+      const timeStr = new Date((event.timestamp || Date.now() / 1000) * 1000).toLocaleTimeString();
+
+      let badge = '<span class="text-sky-400">[INFO]</span>';
+      if (event.type === 'EVENT_CONFLICT_DETECTED') badge = '<span class="text-rose-400 font-bold">[CONFLICT]</span>';
+      if (event.type === 'EVENT_TASK_CLAIMED') badge = '<span class="text-amber-400 font-semibold">[CLAIM]</span>';
+      if (event.type === 'EVENT_TASK_SUBMITTED') badge = '<span class="text-emerald-400 font-semibold">[SUBMIT]</span>';
+
+      div.innerHTML = `
+        <span class="text-slate-600">${timeStr}</span>
+        ${badge}
+        <span class="text-slate-300 font-bold">${event.type || 'EVENT'}</span>
+        <span class="text-slate-400">node=<span class="text-sky-300 font-mono">${event.node_id || '--'}</span></span>
+        <span class="text-slate-500">actor=@${event.actor || 'system'}</span>
+      `;
+      eventStream.appendChild(div);
+      eventStream.scrollTop = eventStream.scrollHeight;
+    }
+
+    // Connect WebSocket
+    function connectWebSocket() {
+      const wsUrl = `ws://${window.location.host}/ws/graph`;
+      const indicator = document.getElementById('ws-indicator');
+      const dot = document.getElementById('ws-dot');
+      const text = document.getElementById('ws-text');
+
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50';
+          text.textContent = 'WS: CONNECTED';
+          fetchGraphState();
+        };
+
+        ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            logLiveEvent(msg);
+            fetchGraphState();
+          } catch (err) {
+            console.error('WS parse err', err);
+          }
+        };
+
+        ws.onclose = () => {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
+          text.textContent = 'WS: RECONNECTING';
+          setTimeout(connectWebSocket, 2000);
+        };
+
+        ws.onerror = () => {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+          text.textContent = 'WS: STANDALONE';
+        };
+      } catch (e) {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+        text.textContent = 'WS: STANDALONE';
+      }
+    }
+
+    // Fetch Full Graph State via REST
+    async function fetchGraphState() {
+      try {
+        const res = await fetch('/api/graph');
+        if (res.ok) {
+          const data = await res.json();
+          graphData = data;
+          renderDAG();
+          if (selectedNodeId) selectNode(selectedNodeId);
+        }
+      } catch (e) {
+        // Fallback to initial mock if API not up
+        if (graphData.nodes.length === 0) {
+          graphData = initialFallbackData;
+          renderDAG();
+          selectNode("TSK-03");
+        }
+      }
+    }
+
+    // Zoom & Pan Handler
+    function updateTransform() {
+      viewportG.setAttribute('transform', `translate(${pan.x}, ${pan.y}) scale(${zoom})`);
+    }
+
+    svg.addEventListener('mousedown', (e) => {
+      if (e.target === svg || e.target.tagName === 'path') {
+        isDragging = true;
+        dragStart = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        pan.x = e.clientX - dragStart.x;
+        pan.y = e.clientY - dragStart.y;
+        updateTransform();
+      }
+    });
+
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    document.getElementById('btn-zoom-in').onclick = () => { zoom = Math.min(2.0, zoom * 1.15); updateTransform(); };
+    document.getElementById('btn-zoom-out').onclick = () => { zoom = Math.max(0.4, zoom * 0.85); updateTransform(); };
+    document.getElementById('btn-reset-zoom').onclick = () => { zoom = 1.0; pan = { x: 40, y: 40 }; updateTransform(); };
+    document.getElementById('btn-refresh').onclick = () => fetchGraphState();
+
+    // Simulation Button: Demonstrate Gate 4 Blast Radius visually
+    document.getElementById('btn-simulate').onclick = () => {
+      const tsk3 = graphData.nodes.find(n => n.id === 'TSK-03');
+      const req1 = graphData.nodes.find(n => n.id === 'REQ-01');
+      if (tsk3 && req1) {
+        req1.version = 2;
+        req1.payload = { spec: "Ed25519 asymmetric auth tokens (v2 update)" };
+        tsk3.status = 'STALE_CONFLICT';
+        tsk3.payload.conflict = "BLAST RADIUS TRIGGERED: Upstream requirement REQ-01 altered to Ed25519. Invalidation propagated to TSK-03.";
+        renderDAG();
+        selectNode('TSK-03');
+        logLiveEvent({
+          type: "EVENT_CONFLICT_DETECTED",
+          node_id: "TSK-03",
+          actor: "dag-engine",
+          timestamp: Date.now() / 1000
+        });
+      }
+    };
+
+    // Close Drawer
+    document.getElementById('btn-close-drawer').onclick = () => {
+      selectedNodeId = null;
+      renderDAG();
+    };
+
+    // Initial Setup
+    graphData = initialFallbackData;
+    renderDAG();
+    selectNode("TSK-03");
+    updateTransform();
+    connectWebSocket();
+    fetchGraphState();
+  </script>
+</body>
+</html>
