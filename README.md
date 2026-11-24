@@ -88,6 +88,41 @@ Open your browser to:
 
 ---
 
+## ⚡ Zero-Ceremony Agent Workflow
+
+OmniHarness provides a streamlined, zero-ceremony command workflow for coding agents (Claude Code CLI, OpenAI Codex / Cursor, Antigravity) running across separate laptops:
+
+### 1. One-Time Laptop Setup
+Connect your local environment to the OmniHarness instance (local, Cloudflare Tunnel, or Render):
+```bash
+python -m adapters.<claude|codex|agy>_adapter connect https://multiagentharness.onrender.com --agent-id my-agent-id
+```
+*(Saves connection parameters to `.omniharness.json` so you never have to re-type `--server` or `--agent-id`)*
+
+### 2. Discover Ready Tasks
+View the real-time shared DAG and highlight unblocked, ready-to-claim tasks:
+```bash
+python -m adapters.<claude|codex|agy>_adapter tasks
+```
+
+### 3. Claim & Pull Scoped Prompt
+Claim a specific task, or omit the task ID to automatically claim the next ready task and retrieve its ~1.5k token scoped upstream prompt:
+```bash
+python -m adapters.<claude|codex|agy>_adapter start [TASK_ID]
+```
+
+### 4. Submit Completed Work
+Submit task output directly from the command line or from an artifact file:
+```bash
+# Submit with an inline summary
+python -m adapters.<claude|codex|agy>_adapter done <TASK_ID> "Implemented and verified component"
+
+# Or submit with an artifact payload file
+python -m adapters.<claude|codex|agy>_adapter done <TASK_ID> --file output.json
+```
+
+---
+
 ## 🧪 Running the Demo Workflow
 
 Execute the deterministic 6-gate evaluation workflow simulating Claude Code CLI and Codex agents collaborating, claiming tasks, handling live requirement shifts, and tracing audit lineage:
