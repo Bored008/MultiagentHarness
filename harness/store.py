@@ -238,3 +238,12 @@ class EventStore:
                 )
                 for row in rows
             ]
+
+    def clear(self) -> None:
+        """Clear all stored nodes, edges, and events for clean test/demo runs."""
+        with self._get_connection() as conn:
+            conn.execute("DELETE FROM edges;")
+            conn.execute("DELETE FROM events;")
+            conn.execute("DELETE FROM nodes;")
+            conn.commit()
+

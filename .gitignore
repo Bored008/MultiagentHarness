@@ -20,6 +20,8 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+*.log
+
 
 # Node / Frontend
 node_modules/

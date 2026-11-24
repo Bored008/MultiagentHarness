@@ -61,11 +61,12 @@ def test_health_check(client):
 
 
 def test_dashboard_endpoint(client):
-    """Verify GET / returns 200 HTML response."""
-    resp = client.get("/")
-    assert resp.status_code == 200
-    assert "text/html" in resp.headers["content-type"]
-    assert "OmniHarness" in resp.text
+    """Verify GET / and /dashboard return 200 HTML response."""
+    for path in ("/", "/dashboard"):
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+        assert "OmniHarness" in resp.text
 
 
 def test_create_node_and_dependencies(client):
@@ -451,3 +452,13 @@ def test_websocket_ping_pong(client):
         ws.send_text("ping")
         pong = ws.receive_text()
         assert pong == "pong"
+
+
+def test_reset_graph(client):
+    """Verify POST /api/reset clears all nodes and resets store."""
+    client.post("/api/nodes", json={"id": "RST-01", "title": "Temporary", "type": "TASK"})
+    assert len(client.get("/api/nodes").json()) >= 1
+    resp = client.post("/api/reset")
+    assert resp.status_code == 200
+    assert len(client.get("/api/nodes").json()) == 0
+

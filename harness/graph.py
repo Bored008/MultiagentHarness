@@ -92,6 +92,16 @@ class DAGManager:
         if self.store is not None:
             self.build_from_store(self.store)
 
+    def reset(self) -> None:
+        """Clear store and all in-memory graph state."""
+        with self._lock:
+            if self.store is not None:
+                self.store.clear()
+            self.graph.clear()
+            self._nodes.clear()
+            logger.info("DAGManager graph and store reset to empty state.")
+
+
     def get_node(self, node_id: Any) -> Optional[Node]:
         """Fetch node by ID from in-memory index, falling back to store."""
         if isinstance(node_id, Node):
