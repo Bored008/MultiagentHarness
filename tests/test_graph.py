@@ -298,3 +298,212 @@ def test_task_claim_and_submission(dag):
     dag.add_node(tsk2)
     with pytest.raises(TaskConflictError):
         dag.submit_task("TSK-02", agent_id="codex", output={})
+
+
+def test_dependency_missing_raises_error(dag):
+    """Verify that referencing non-existent dependencies raises NodeNotFoundError."""
+    tsk = Node(id="TSK-NONEXIST", title="Missing Dep", type=NodeType.TASK)
+    with pytest.raises(NodeNotFoundError):
+        dag.add_node(tsk, dependencies=["DOES_NOT_EXIST"])
+
+    with pytest.raises(NodeNotFoundError):
+        dag.add_dependency("DOES_NOT_EXIST", "TSK-01")
+
+
+def test_diamond_graph_blast_radius_deduplication(dag):
+    """Verify deduplication of downstream invalidation in diamond graphs."""
+    req = Node(id="REQ-ROOT", title="Root Req", type=NodeType.REQUIREMENT)
+    t1 = Node(id="BRANCH-1", title="Branch 1", type=NodeType.TASK)
+    t2 = Node(id="BRANCH-2", title="Branch 2", type=NodeType.TASK)
+    leaf = Node(id="LEAF-NODE", title="Leaf Artifact", type=NodeType.ARTIFACT)
+
+    dag.add_node(req)
+    dag.add_node(t1, dependencies=["REQ-ROOT"])
+    dag.add_node(t2, dependencies=["REQ-ROOT"])
+    dag.add_node(leaf, dependencies=["BRANCH-1", "BRANCH-2"])
+
+    invalidated = dag.invalidate_downstream("REQ-ROOT")
+    assert len(invalidated) == 3
+    assert set(invalidated) == {"BRANCH-1", "BRANCH-2", "LEAF-NODE"}
+    assert dag.get_node("LEAF-NODE").version == 2
+
+
+def test_ready_tasks_detection(dag):
+    """Verify get_ready_tasks correctly detects tasks whose predecessors are COMPLETED."""
+    req = Node(id="REQ-GATE", title="Spec", type=NodeType.REQUIREMENT, status=NodeStatus.PENDING)
+    t1 = Node(id="T-READY-1", title="Task 1", type=NodeType.TASK, status=NodeStatus.PENDING)
+    t2 = Node(id="T-READY-2", title="Task 2", type=NodeType.TASK, status=NodeStatus.PENDING)
+
+    dag.add_node(req)
+    dag.add_node(t1, dependencies=["REQ-GATE"])
+    dag.add_node(t2, dependencies=["T-READY-1"])
+
+    # Initially none are ready because REQ-GATE is PENDING
+    assert len(dag.get_ready_tasks()) == 0
+
+    # Once REQ-GATE is COMPLETED, T1 is ready
+    req.status = NodeStatus.COMPLETED
+    assert [n.id for n in dag.get_ready_tasks()] == ["T-READY-1"]
+
+    # Once T1 is COMPLETED, T2 is ready
+    t1.status = NodeStatus.COMPLETED
+    assert [n.id for n in dag.get_ready_tasks()] == ["T-READY-2"]
+
+
+def test_scoped_subgraph_extraction_and_token_capping(dag):
+    """Verify distance ranking and token budgeting in get_scoped_subgraph."""
+    root = Node(id="ROOT-CHAIN", title="Root", type=NodeType.REQUIREMENT)
+    dag.add_node(root)
+    prev = "ROOT-CHAIN"
+    for i in range(1, 11):
+        nid = f"ANC-{i:02d}"
+        dag.add_node(Node(id=nid, title=f"Ancestor {i}", type=NodeType.TASK), dependencies=[prev])
+        prev = nid
+
+    target = Node(id="TARGET-TASK", title="Target Task", type=NodeType.TASK)
+    dag.add_node(target, dependencies=[prev])
+
+    # max_tokens = 800 -> budget = (800 - 300) // 250 = 2 ancestors
+    subgraph = dag.get_scoped_subgraph("TARGET-TASK", max_tokens=800)
+    assert len(subgraph.ancestors) == 2
+    # Closest ancestors in distance order
+    assert [a.id for a in subgraph.ancestors] == ["ANC-10", "ANC-09"]
+
+
+def test_node_status_aliases():
+    """Verify INVALIDATED and NEEDS_RECHECK resolve cleanly to STALE_CONFLICT."""
+    assert NodeStatus("INVALIDATED") == NodeStatus.STALE_CONFLICT
+    assert NodeStatus("NEEDS_RECHECK") == NodeStatus.STALE_CONFLICT
+    assert NodeStatus.INVALIDATED == NodeStatus.STALE_CONFLICT
+    assert NodeStatus.NEEDS_RECHECK == NodeStatus.STALE_CONFLICT
+
+
+def test_ancestors_and_descendants_methods(dag):
+    """Verify get_ancestors, get_descendants, and get_execution_order."""
+    r = Node(id="R-ANC", title="R", type=NodeType.REQUIREMENT)
+    m = Node(id="M-ANC", title="M", type=NodeType.TASK)
+    l = Node(id="L-ANC", title="L", type=NodeType.ARTIFACT)
+
+    dag.add_node(r)
+    dag.add_node(m, dependencies=["R-ANC"])
+    dag.add_node(l, dependencies=["M-ANC"])
+
+    assert dag.get_ancestors("L-ANC") == {"R-ANC", "M-ANC"}
+    assert dag.get_descendants("R-ANC") == {"M-ANC", "L-ANC"}
+    assert dag.get_upstream_dependencies("L-ANC") == ["R-ANC", "M-ANC"]
+    order = dag.get_execution_order()
+    assert order.index("R-ANC") < order.index("M-ANC") < order.index("L-ANC")
+
+
+def test_concurrent_access_thread_safety():
+    """Verify thread safety with concurrent writers and claims."""
+    import threading
+    dag = DAGManager()
+    root = Node(id="ROOT-CONCURR", title="Root", type=NodeType.REQUIREMENT)
+    dag.add_node(root)
+
+    # 5 threads adding 20 nodes each concurrently
+    def worker_add(wid):
+        for i in range(20):
+            nid = f"W{wid}_{i}"
+            dag.add_node(Node(id=nid, title=nid, type=NodeType.TASK), dependencies=["ROOT-CONCURR"])
+
+    threads = [threading.Thread(target=worker_add, args=(w,)) for w in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(dag.list_nodes()) == 101
+    assert len(dag.list_edges()) == 100
+
+    # 10 threads racing to claim the same pending task
+    task = Node(id="RACE-TASK", title="Race", type=NodeType.TASK)
+    dag.add_node(task)
+    claim_results = []
+
+    def worker_claim(aid):
+        try:
+            dag.claim_task("RACE-TASK", agent_id=f"agent-{aid}")
+            claim_results.append(True)
+        except TaskConflictError:
+            claim_results.append(False)
+
+    threads = [threading.Thread(target=worker_claim, args=(a,)) for a in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert claim_results.count(True) == 1
+    assert claim_results.count(False) == 9
+
+
+def test_claim_stale_conflict_task_rejected(dag):
+    """Verify that tasks in STALE_CONFLICT cannot be claimed, preventing state bypass."""
+    req = Node(id="REQ-BYPASS", title="Spec", type=NodeType.REQUIREMENT)
+    tsk = Node(id="TSK-BYPASS", title="Task", type=NodeType.TASK)
+
+    dag.add_node(req)
+    dag.add_node(tsk, dependencies=["REQ-BYPASS"])
+
+    dag.invalidate_subtree("REQ-BYPASS", reason="Breaking spec change")
+    assert dag.get_node("TSK-BYPASS").status == NodeStatus.STALE_CONFLICT
+
+    with pytest.raises(TaskConflictError):
+        dag.claim_task("TSK-BYPASS", agent_id="rogue-agent")
+
+    # Verify status was NOT modified to IN_PROGRESS
+    assert dag.get_node("TSK-BYPASS").status == NodeStatus.STALE_CONFLICT
+
+
+def test_submit_task_validation_and_ownership(dag):
+    """Verify submit_task guards: only assigned agent can submit IN_PROGRESS task."""
+    tsk = Node(id="TSK-SUBMIT-GUARD", title="Task", type=NodeType.TASK, status=NodeStatus.PENDING)
+    dag.add_node(tsk)
+
+    # Submitting PENDING task raises error
+    with pytest.raises(TaskConflictError):
+        dag.submit_task("TSK-SUBMIT-GUARD", agent_id="agent-1", output={})
+
+    # Claim task as agent-1
+    dag.claim_task("TSK-SUBMIT-GUARD", agent_id="agent-1", tool_name="claude_code")
+
+    # Submitting as agent-2 raises error
+    with pytest.raises(TaskConflictError):
+        dag.submit_task("TSK-SUBMIT-GUARD", agent_id="agent-2", output={})
+
+    # Submitting as agent-1 succeeds
+    submitted = dag.submit_task("TSK-SUBMIT-GUARD", agent_id="agent-1", output={"result": "ok"})
+    assert submitted.status == NodeStatus.COMPLETED
+
+    # Submitting already COMPLETED task raises error
+    with pytest.raises(TaskConflictError):
+        dag.submit_task("TSK-SUBMIT-GUARD", agent_id="agent-1", output={"result": "again"})
+
+
+def test_idempotency_replay_on_mutations(temp_store):
+    """Verify idempotency across update_requirement, add_node, and resolve_conflict."""
+    dag = DAGManager(store=temp_store)
+
+    # 1. add_node idempotency
+    node = Node(id="IDEMP-REQ", title="Spec", type=NodeType.REQUIREMENT)
+    dag.add_node(node, idempotency_key="idemp-add-1")
+    replayed_add = dag.add_node(node, idempotency_key="idemp-add-1")
+    assert replayed_add.id == "IDEMP-REQ"
+
+    # 2. update_requirement idempotency
+    n1, inv1 = dag.update_requirement("IDEMP-REQ", "v1 spec", idempotency_key="idemp-req-1")
+    assert n1.version == 2
+    n2, inv2 = dag.update_requirement("IDEMP-REQ", "v1 spec", idempotency_key="idemp-req-1")
+    assert n2.version == 2  # Version NOT bumped again!
+    assert inv2 == []
+
+    # 3. resolve_conflict idempotency
+    tsk = Node(id="IDEMP-TSK", title="Task", type=NodeType.TASK, status=NodeStatus.STALE_CONFLICT)
+    dag.add_node(tsk)
+    res1 = dag.resolve_conflict("IDEMP-TSK", new_output={"ok": True}, actor="worker", idempotency_key="idemp-res-1")
+    assert res1.version == 2
+    res2 = dag.resolve_conflict("IDEMP-TSK", new_output={"ok": True}, actor="worker", idempotency_key="idemp-res-1")
+    assert res2.version == 2  # Version NOT bumped again!
+
