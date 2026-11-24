@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
 from harness.graph import (
     CycleError,
@@ -126,7 +126,7 @@ def create_app(
         # Shutdown cleanup if needed
 
     app = FastAPI(
-        title="OmniHarness API",
+        title="SYNAPSE API",
         description="Multi-Agent DAG Knowledge Hub with real-time WebSocket sync and strict idempotency.",
         version="1.0.0",
         lifespan=lifespan,
@@ -178,6 +178,13 @@ def create_app(
             "active_ws_clients": len(ws_manager.active_connections),
         }
 
+    @app.get("/assets/synapse-logo.svg")
+    async def get_synapse_logo():
+        logo_path = Path(__file__).parent / "assets" / "synapse-logo.svg"
+        if logo_path.exists():
+            return FileResponse(logo_path, media_type="image/svg+xml")
+        raise HTTPException(status_code=404, detail="Logo asset not found")
+
     @app.get("/", response_class=HTMLResponse)
     @app.get("/dashboard", response_class=HTMLResponse)
     async def get_dashboard():
@@ -193,9 +200,9 @@ def create_app(
         return HTMLResponse(
             content="""<!DOCTYPE html>
 <html>
-<head><title>OmniHarness Live Dashboard</title></head>
+<head><title>SYNAPSE Live Dashboard</title></head>
 <body style="font-family: sans-serif; background: #0f172a; color: #f8fafc; padding: 2rem;">
-    <h1>OmniHarness Dashboard</h1>
+    <h1>SYNAPSE Dashboard</h1>
     <p>Multi-Agent DAG Knowledge Base & Live Event Stream Hub.</p>
 </body>
 </html>"""

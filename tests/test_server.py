@@ -70,12 +70,17 @@ def test_health_check(client):
 
 
 def test_dashboard_endpoint(client):
-    """Verify GET / and /dashboard return 200 HTML content."""
+    """Verify GET / and /dashboard return 200 HTML content and logo asset serves cleanly."""
     for path in ("/", "/dashboard"):
         resp = client.get(path)
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
-        assert "OmniHarness" in resp.text
+        assert "SYNAPSE" in resp.text
+
+    logo = client.get("/assets/synapse-logo.svg")
+    assert logo.status_code == 200
+    assert "image/svg+xml" in logo.headers["content-type"]
+    assert "<svg" in logo.text
 
 
 def test_create_task_success(client):
