@@ -851,13 +851,6 @@ def test_startup_snapshot_file_hydrates_empty_db_and_skips_nonempty(tmp_path, mo
 # Dynamic 4-Letter Project Preview Routing Tests
 # -------------------------------------------------------------
 
-def test_todo_project_serves_todo_index_html(client):
-    """Verify GET /todo serves todo/index.html with 200 HTML."""
-    resp = client.get("/todo")
-    assert resp.status_code == 200
-    assert "text/html" in resp.headers["content-type"]
-    assert "TaskMaster" in resp.text
-
 
 def test_longer_disk_project_folder_resolves_at_four_letter_slug(tmp_path):
     """Verify disk project folder calculator/index.html resolves at GET /calc and lists in /llms.txt."""
@@ -978,6 +971,7 @@ def test_unknown_paths_and_path_traversal_return_404(tmp_path):
     db_file = tmp_path / "sec.db"
     proj_app = create_app(db_path=str(db_file), projects_root=tmp_path)
     with TestClient(proj_app) as proj_client:
+        assert proj_client.get("/todo").status_code == 404
         assert proj_client.get("/nonexistent").status_code == 404
         assert proj_client.get("/favicon.ico").status_code == 404
         assert proj_client.get("/calc/../harness/server.py").status_code == 404
