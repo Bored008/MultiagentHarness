@@ -261,6 +261,7 @@ Built for **NexHack 2.0 (Problem Statement 01: Multi-Agent Harness for Shared Te
 
 - **Himanshu Dahiya** ([@Bored008](https://github.com/Bored008)) — In-Memory DAG architecture (NetworkX), SQLite WAL event store, real-time WebSocket hub, and React Flow visual dashboard.
 - **Mohit Jangra** ([@mohitjangra997](https://github.com/mohitjangra997)) — Google Antigravity adapter, zero-ceremony CLI workflow, multi-agent game state machine, and comprehensive test suite validation.
+- **Rahul Bhukal** ([@bhukalrahul9745](mailto:bhukalrahul9745@gmail.com)) — Real-time conflict resolution protocols, multi-laptop LAN/tunnel orchestration, environment verification, and benchmark validation.
 
 ---
 
