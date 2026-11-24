@@ -76,7 +76,7 @@ python -m pip install -r requirements.txt
 ```bash
 python -m pytest
 ```
-*(89 comprehensive unit and integration tests verifying SQLite store idempotency, NetworkX DAG blast-radius traversal, REST endpoints, auth token verifiers, and multi-agent adapter conflict lifecycles)*
+*(112 comprehensive unit and integration tests verifying SQLite store idempotency, NetworkX DAG blast-radius traversal, REST endpoints, auth token verifiers, multi-agent adapter conflict lifecycles, and TaskMaster To-Do persistence and API contracts)*
 
 ### 3. Launch the OmniHarness Server & Live Dashboard
 ```bash
@@ -206,12 +206,19 @@ MultiagentHarness/
 │   ├── server.py          # FastAPI REST & WebSocket server
 │   ├── seeds.py           # Pre-configured DAG templates (tictactoe, auth)
 │   └── dashboard.html     # Live interactive visual graph dashboard
+├── todo/
+│   ├── models.py          # Pydantic v2 domain schemas (TodoItem, TodoCreate, TodoStats)
+│   ├── store.py           # Thread-safe SQLite WAL repository with telemetry aggregations
+│   ├── router.py          # FastAPI CRUD endpoints with filtering & WebSocket broadcasting
+│   └── index.html         # Responsive TaskMaster UI with color badging & metrics bar
 ├── tests/
 │   ├── test_adapters.py   # Tests for agent adapters & conflict signals
 │   ├── test_auth_middleware.py # Tests for RS256 token verifier
 │   ├── test_graph.py      # Tests for DAG cycles & blast-radius invalidation
 │   ├── test_server.py     # Tests for REST endpoints & WebSockets
-│   └── test_store.py      # Tests for SQLite event persistence & idempotency
+│   ├── test_store.py      # Tests for SQLite event persistence & idempotency
+│   ├── test_todo_api.py   # Tests for To-Do REST endpoints & WebSocket change broadcasts
+│   └── test_todo_store.py # Tests for To-Do Pydantic v2 validation & WAL persistence
 ├── workflows/
 │   └── omniharness_demo.py # 6-gate end-to-end evaluation demo
 ├── notes/
@@ -232,6 +239,19 @@ OmniHarness includes a full end-to-end multi-agent demonstration showcasing coll
 - **`TSK-03`**: Cyberpunk glassmorphic UI, LocalStorage scoreboard, and procedural Web Audio API sound synthesis.
 - **`TSK-04`**: Dynamic SVG vector strike-through animation, canvas confetti celebration engine, and rematch modal.
 - **`TSK-05`**: OmniHarness WebSocket live two-player synchronization bridge.
+
+---
+
+## 📋 Built-In Demonstration: TaskMaster To-Do App
+
+TaskMaster To-Do App demonstrates multi-agent collaboration across data modeling, backend routing, UI development, and live WebSocket synchronization:
+- **`REQ-01` & `DEC-01`**: Architecture specification, color matrix definition (Pending Yellow, Working Orange, Incomplete Red, Completed Green; Low Blue, Medium Amber, High Rose, MVP Neon Purple), and REST/WebSocket API contracts.
+- **`TSK-01`**: Pydantic v2 schemas (`TodoStatus`, `TodoPriority`, `TodoCreate`, `TodoUpdate`, `TodoItem`, `TodoStats`) and SQLite WAL repository (`TodoStore`) with automatic aggregation and search query filtering.
+- **`TSK-02`**: FastAPI CRUD endpoints (`GET/POST /api/todos`, `PATCH/DELETE /api/todos/{id}`, `GET /api/todos/stats`) wired directly into the OmniHarness backend with real-time WebSocket broadcast events (`TODO_CREATED`, `TODO_UPDATED`, `TODO_DELETED`).
+- **`TSK-03`**: Responsive frontend with live metrics tally, status badge matrix, and MVP Extreme highlight tier.
+- **`TSK-04`**: Cross-client bidirectional synchronization, overdue countdown timers, and instant MVP toggle filtering.
+- **`TSK-05`**: End-to-end pytest API verification suite validating idempotency, concurrency, and telemetry metrics.
+
 
 ---
 
