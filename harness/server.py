@@ -177,6 +177,7 @@ def create_app(
         }
 
     @app.get("/", response_class=HTMLResponse)
+    @app.get("/dashboard", response_class=HTMLResponse)
     async def get_dashboard():
         """Serves live visual dashboard HTML from harness/dashboard.html."""
         locations = [
@@ -490,6 +491,18 @@ def create_app(
     async def get_node_events(node_id: str):
         """Returns audit lineage event list for the specified node."""
         return st.get_events_for_node(node_id)
+
+    @app.post("/api/reset")
+    async def reset_graph():
+        """Resets the shared graph, SQLite event store, and broadcasts reset to all clients."""
+        dag.reset()
+        await manager.broadcast({
+            "event_type": "GRAPH_RESET",
+            "type": "GRAPH_RESET",
+            "timestamp": time.time(),
+        })
+        return {"status": "success", "message": "Graph and event store reset."}
+
 
     return app
 

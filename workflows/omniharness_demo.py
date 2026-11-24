@@ -158,6 +158,15 @@ def run_demo(server_url: Optional[str] = None) -> bool:
 
     client = httpx.Client(base_url=server_url, timeout=10.0)
 
+    # Ensure clean state for evaluation run
+    try:
+        reset_res = client.post("/api/reset")
+        if reset_res.status_code == 200:
+            log_step("Reset shared knowledge graph to clean state for evaluation.")
+    except Exception:
+        pass
+
+
     try:
         # =========================================================================
         # GATE 1: Connect Two Different Tools (Claude + Codex Adapters)
