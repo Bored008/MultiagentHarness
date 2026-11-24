@@ -139,6 +139,11 @@ class DAGManager:
         Synchronizes with SQLite store if attached.
         """
         with self._lock:
+            if self.store and idempotency_key:
+                existing = self.store.check_idempotency(idempotency_key)
+                if existing:
+                    return self.get_node(node.id) or node
+
             deps = list(dict.fromkeys(dependencies or []))
 
             # 1. Check for self-loops
@@ -436,6 +441,11 @@ class DAGManager:
             if not task:
                 raise NodeNotFoundError(f"Task '{task_id}' not found.")
 
+            if self.store and idempotency_key:
+                existing = self.store.check_idempotency(idempotency_key)
+                if existing:
+                    return task
+
             now = time.time()
             task.status = NodeStatus.COMPLETED
             task.version += 1
@@ -492,6 +502,10 @@ class DAGManager:
 
             if node.status == NodeStatus.COMPLETED:
                 raise TaskConflictError(f"Task '{task_id}' is already COMPLETED.")
+            if node.status == NodeStatus.STALE_CONFLICT or bool(node.payload.get("is_stale", False)):
+                raise TaskConflictError(
+                    f"Task '{task_id}' has conflict status STALE_CONFLICT and cannot be claimed until resolved."
+                )
             if node.status == NodeStatus.IN_PROGRESS and node.assigned_to not in (agent_id, assigned_identifier):
                 raise TaskConflictError(f"Task '{task_id}' is already claimed by {node.assigned_to}.")
 
@@ -533,8 +547,22 @@ class DAGManager:
                 if existing:
                     return node
 
-            if node.status == NodeStatus.STALE_CONFLICT:
+            if node.status == NodeStatus.STALE_CONFLICT or bool(node.payload.get("is_stale", False)):
                 raise TaskConflictError(f"Cannot submit output for task '{task_id}' in STALE_CONFLICT state.")
+
+            if node.status != NodeStatus.IN_PROGRESS:
+                raise TaskConflictError(
+                    f"Task '{task_id}' is not IN_PROGRESS (current status: {node.status.value})."
+                )
+
+            is_owner = (
+                node.assigned_to == agent_id
+                or (node.assigned_to and node.assigned_to.startswith(f"{agent_id} ("))
+            )
+            if node.assigned_to and not is_owner:
+                raise TaskConflictError(
+                    f"Task '{task_id}' is claimed by '{node.assigned_to}', not '{agent_id}'."
+                )
 
             node.status = NodeStatus.COMPLETED
             node.assigned_to = agent_id
