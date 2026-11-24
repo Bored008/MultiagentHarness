@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: omniharness
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: OMNIHARNESS_DB_PATH
+        value: /app/data/omniharness.db

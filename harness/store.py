@@ -16,6 +16,8 @@ from harness.models import Edge, Event, Node, NodeStatus, NodeType
 class EventStore:
     def __init__(self, db_path: str = "omniharness.db"):
         self.db_path = db_path
+        if db_path != ":memory:" and not db_path.startswith("file:"):
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:

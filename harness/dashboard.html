@@ -529,6 +529,7 @@
     // ===================== STATE =====================
     let graphData = { nodes: [], edges: [], stats: {} };
     let selectedNodeId = null;
+    let hoveredNodeId = null;
     let ws = null;
     let pan = { x: 60, y: 50 };
     let zoom = 1.0;
@@ -714,6 +715,7 @@
         const isSelected = selectedNodeId === node.id;
         const isConflict = node.status === 'STALE_CONFLICT';
         const isActive = node.status === 'IN_PROGRESS';
+        const isHovered = hoveredNodeId === node.id;
 
         const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
@@ -734,6 +736,23 @@
           e.stopPropagation();
           selectNode(node.id);
         };
+
+        g.addEventListener('mouseenter', () => {
+          if (!draggingNodeId) {
+            hoveredNodeId = node.id;
+            rect.setAttribute('stroke', isSelected ? style.accentColor : '#b0b0b0');
+            rect.setAttribute('stroke-width', isSelected ? '2.5' : '1.5');
+            rect.setAttribute('filter', isConflict ? 'url(#node-shadow-conflict)' : 'url(#node-shadow-hover)');
+          }
+        });
+        g.addEventListener('mouseleave', () => {
+          if (hoveredNodeId === node.id) {
+            hoveredNodeId = null;
+            rect.setAttribute('stroke', isSelected ? style.accentColor : '#e0e0e0');
+            rect.setAttribute('stroke-width', isSelected ? '2.5' : '1');
+            rect.setAttribute('filter', isConflict ? 'url(#node-shadow-conflict)' : 'url(#node-shadow)');
+          }
+        });
 
         // Conflict outer glow ring (NO CSS transform to prevent coordinate displacement)
         if (isConflict) {
@@ -973,11 +992,16 @@
         if (res.ok) {
           const data = await res.json();
           if (data && data.nodes && data.nodes.length > 0) {
-            graphData = data; renderDAG();
-            if (selectedNodeId) selectNode(selectedNodeId);
+            graphData = data;
+            renderDAG();
+            if (selectedNodeId && graphData.nodes.some(n => n.id === selectedNodeId)) {
+              selectNode(selectedNodeId);
+            } else if (graphData.nodes.length > 0) {
+              selectNode(graphData.nodes[0].id);
+            }
           }
         }
-      } catch {
+      } catch (err) {
         if (graphData.nodes.length === 0) { graphData = initialFallbackData; renderDAG(); selectNode("TSK-03"); }
       }
     }

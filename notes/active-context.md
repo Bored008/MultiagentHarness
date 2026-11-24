@@ -60,9 +60,8 @@
 - [x] **Implement Graph Core & SQLite Store**: `harness/graph.py` (NetworkX DAG manager, cycle rejection, blast-radius invalidation, scoped subgraphs) and `harness/store.py` (SQLite WAL event log with idempotency constraints).
 - [x] **Build FastAPI REST & WebSocket Server**: `harness/server.py` exposing REST endpoints (`/api/nodes`, `/api/tasks`, `/api/requirements`) and WebSocket `/ws/graph` broadcasting (`< 50ms` latency).
 - [x] **Develop Universal Tool Adapters**: `adapters/claude_adapter.py` and `adapters/codex_adapter.py` subclassing `BaseAgentAdapter` with real-time WebSocket conflict listening and CLI entrypoints.
-- [x] **Build Visual Live Graph UI**: Interactive live dashboard in `harness/dashboard.html` with real-time DAG nodes, amber in-flight leases, pulsing red conflict badges, and audit lineage drawer.
-- [x] **Deterministic 6-Gate Evaluation Workflow**: `workflows/omniharness_demo.py` executing all 6 NexHack gates end-to-end with 100% pass rate.
-- [x] **Comprehensive Test Verification**: 59 passing unit and integration tests across `tests/test_store.py`, `tests/test_graph.py`, `tests/test_server.py`, `tests/test_adapters.py`. Added `/api/reset` and dual `/dashboard` + `/` routes.
+- [x] **Visual 3D Depth Live Graph UI**: Merged `origin/feature/frontend-3d-redesign` into `main` featuring [harness/dashboard.html](file:///c:/Project/MultiagentHarness/harness/dashboard.html) with clean light theme, animated flows, 3D depth shadows, ambient floating particles, interactive node drag-and-drop repositioning, and conflict pulse glow rings.
+- [x] **Comprehensive Test Verification**: 64 passing unit and integration tests across all test suites (`test_store.py`, `test_graph.py`, `test_server.py`, `test_adapters.py`, `test_auth_middleware.py`).
 - [x] **Two-Laptop Testing & Tunnel WSS Auto-Detection**: Added `scripts/seed_demo.py` and `scripts/seed.bat`; updated `dashboard.html` for zero-friction HTTPS/WSS compatibility over Cloudflare tunnels.
 
 ### 5. Next Steps for Demonstration & Deployment

@@ -551,3 +551,17 @@ def test_startup_lifespan_hydration(temp_db):
         assert len(data["edges"]) == 1
         assert data["edges"][0]["source"] == "HYDRATE-01"
         assert data["edges"][0]["target"] == "HYDRATE-02"
+
+
+def test_create_app_uses_env_db_path_and_creates_parent_dir(tmp_path, monkeypatch):
+    nested_db = tmp_path / "nested" / "data" / "omniharness.db"
+    monkeypatch.setenv("OMNIHARNESS_DB_PATH", str(nested_db))
+
+    env_app = create_app()
+    with TestClient(env_app) as client:
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "healthy"
+
+    assert nested_db.exists()
+

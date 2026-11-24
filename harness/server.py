@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -97,7 +98,7 @@ class ConnectionManager:
 
 
 def create_app(
-    db_path: str = "omniharness.db",
+    db_path: Optional[str] = None,
     dag_manager: Optional[DAGManager] = None,
     store: Optional[EventStore] = None,
 ) -> FastAPI:
@@ -105,7 +106,8 @@ def create_app(
     Factory function to initialize and configure the OmniHarness FastAPI server.
     Hydrates in-memory DAG from SQLite store on startup lifespan.
     """
-    st = store or (dag_manager.store if dag_manager and dag_manager.store else EventStore(db_path=db_path))
+    resolved_db_path = db_path if db_path is not None else os.environ.get("OMNIHARNESS_DB_PATH", "omniharness.db")
+    st = store or (dag_manager.store if dag_manager and dag_manager.store else EventStore(db_path=resolved_db_path))
     dag = dag_manager or DAGManager(store=st)
     ws_manager = ConnectionManager()
     mutation_lock = asyncio.Lock()
@@ -196,6 +198,17 @@ def create_app(
 </body>
 </html>"""
         )
+
+    @app.get("/todo", response_class=HTMLResponse)
+    async def get_todo_app():
+        locations = [
+            Path(__file__).parent.parent / "todo" / "index.html",
+            Path("todo/index.html"),
+        ]
+        for p in locations:
+            if p.exists():
+                return HTMLResponse(content=p.read_text(encoding="utf-8"))
+        return HTMLResponse(content="<h1>To-Do App Not Found</h1>", status_code=404)
 
     # 1. POST /tasks (and /api/nodes, /api/tasks)
     @app.post("/tasks", status_code=status.HTTP_201_CREATED)
@@ -567,4 +580,9 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("harness.server:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run(
+        "harness.server:app",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", "8000")),
+        reload=False,
+    )
