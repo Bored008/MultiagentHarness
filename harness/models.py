@@ -22,6 +22,16 @@ class NodeStatus(str, Enum):
     COMPLETED = "COMPLETED"
     STALE_CONFLICT = "STALE_CONFLICT"
     FAILED = "FAILED"
+    INVALIDATED = "STALE_CONFLICT"
+    NEEDS_RECHECK = "STALE_CONFLICT"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_upper = value.upper()
+            if val_upper in ("INVALIDATED", "NEEDS_RECHECK"):
+                return cls.STALE_CONFLICT
+        return super()._missing_(value)
 
 
 class Node(BaseModel):
@@ -53,13 +63,14 @@ class Event(BaseModel):
 
 
 class ClaimTaskRequest(BaseModel):
-    task_id: str
+    task_id: Optional[str] = None
     agent_id: str
+    tool_name: str = "generic_tool"
     idempotency_key: str
 
 
 class SubmitTaskRequest(BaseModel):
-    task_id: str
+    task_id: Optional[str] = None
     agent_id: str
     idempotency_key: str
     output: Dict[str, Any] = Field(default_factory=dict)
