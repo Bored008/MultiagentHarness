@@ -243,14 +243,10 @@
       50% { transform: translateY(-3px); }
     }
 
-    /* Conflict shake */
-    @keyframes conflictShake {
-      0%, 100% { transform: translateX(0); }
-      10% { transform: translateX(-2px); }
-      20% { transform: translateX(2px); }
-      30% { transform: translateX(-1px); }
-      40% { transform: translateX(1px); }
-      50% { transform: translateX(0); }
+    /* Conflict glow pulse */
+    @keyframes conflictPulse {
+      0%, 100% { stroke-opacity: 0.4; stroke-width: 2; }
+      50% { stroke-opacity: 1; stroke-width: 3.5; }
     }
 
     /* Spinner for in-progress */
@@ -538,7 +534,9 @@
     let zoom = 1.0;
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
-    let hoveredNodeId = null;
+    let draggingNodeId = null;
+    let nodeDragOffset = { x: 0, y: 0 };
+    let customPositions = {};
 
     const svg = document.getElementById('dag-svg');
     const viewportG = document.getElementById('viewport-g');
@@ -617,9 +615,18 @@
       return positions;
     }
 
+    function getNodePositions(nodes) {
+      const defaultPositions = layoutGraph(nodes);
+      const positions = {};
+      nodes.forEach(n => {
+        positions[n.id] = customPositions[n.id] ? { ...customPositions[n.id], width: 240, height: 76 } : defaultPositions[n.id];
+      });
+      return positions;
+    }
+
     // ===================== RENDER DAG =====================
     function renderDAG() {
-      const positions = layoutGraph(graphData.nodes);
+      const positions = getNodePositions(graphData.nodes);
 
       // --- Edges with animated flowing dashes ---
       edgesGroup.innerHTML = '';
@@ -710,27 +717,32 @@
 
         const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
-        g.setAttribute('cursor', 'pointer');
+        g.setAttribute('cursor', 'grab');
 
-        // 3D hover & conflict shake via CSS
-        if (isConflict) {
-          g.style.animation = 'conflictShake 3s ease-in-out infinite';
-        }
+        // Drag node support
+        g.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          draggingNodeId = node.id;
+          nodeDragOffset = {
+            x: (e.clientX - pan.x) / zoom - pos.x,
+            y: (e.clientY - pan.y) / zoom - pos.y
+          };
+          selectNode(node.id);
+        });
 
-        g.onmouseenter = () => { hoveredNodeId = node.id; renderDAG(); };
-        g.onmouseleave = () => { hoveredNodeId = null; renderDAG(); };
-        g.onclick = () => selectNode(node.id);
+        g.onclick = (e) => {
+          e.stopPropagation();
+          selectNode(node.id);
+        };
 
-        const isHovered = hoveredNodeId === node.id;
-
-        // Conflict outer glow ring
+        // Conflict outer glow ring (NO CSS transform to prevent coordinate displacement)
         if (isConflict) {
           const glowRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-          glowRect.setAttribute('x', '-4'); glowRect.setAttribute('y', '-4');
-          glowRect.setAttribute('width', pos.width + 8); glowRect.setAttribute('height', pos.height + 8);
-          glowRect.setAttribute('rx', '12'); glowRect.setAttribute('fill', 'none');
-          glowRect.setAttribute('stroke', '#d94f4f'); glowRect.setAttribute('stroke-width', '2');
-          glowRect.setAttribute('opacity', '0.4');
+          glowRect.setAttribute('x', '-5'); glowRect.setAttribute('y', '-5');
+          glowRect.setAttribute('width', pos.width + 10); glowRect.setAttribute('height', pos.height + 10);
+          glowRect.setAttribute('rx', '14'); glowRect.setAttribute('fill', 'none');
+          glowRect.setAttribute('stroke', '#d94f4f'); glowRect.setAttribute('stroke-width', '2.5');
+          glowRect.setAttribute('opacity', '0.6');
           glowRect.style.animation = 'conflictPulse 1.5s ease-in-out infinite';
           g.appendChild(glowRect);
         }
@@ -970,22 +982,50 @@
       }
     }
 
-    // ===================== PAN & ZOOM =====================
+    // ===================== PAN & ZOOM & NODE DRAGGING =====================
     function updateTransform() { viewportG.setAttribute('transform', `translate(${pan.x},${pan.y}) scale(${zoom})`); }
 
     svg.addEventListener('mousedown', (e) => {
-      if (e.target === svg || e.target.tagName === 'path') {
+      if (e.target === svg || e.target.tagName === 'path' || e.target.id === 'dag-svg') {
         isDragging = true; svg.style.cursor = 'grabbing';
         dragStart = { x: e.clientX - pan.x, y: e.clientY - pan.y };
       }
     });
-    window.addEventListener('mousemove', (e) => { if (isDragging) { pan.x = e.clientX - dragStart.x; pan.y = e.clientY - dragStart.y; updateTransform(); } });
-    window.addEventListener('mouseup', () => { isDragging = false; svg.style.cursor = 'grab'; });
+
+    window.addEventListener('mousemove', (e) => {
+      if (draggingNodeId) {
+        const defaultPositions = layoutGraph(graphData.nodes);
+        const cur = customPositions[draggingNodeId] || defaultPositions[draggingNodeId];
+        const newX = (e.clientX - pan.x) / zoom - nodeDragOffset.x;
+        const newY = (e.clientY - pan.y) / zoom - nodeDragOffset.y;
+        customPositions[draggingNodeId] = { x: Math.round(newX), y: Math.round(newY) };
+        renderDAG();
+        return;
+      }
+      if (isDragging) {
+        pan.x = e.clientX - dragStart.x;
+        pan.y = e.clientY - dragStart.y;
+        updateTransform();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+      draggingNodeId = null;
+      svg.style.cursor = 'grab';
+    });
+
     svg.addEventListener('wheel', (e) => { e.preventDefault(); zoom = Math.min(2.5, Math.max(0.3, zoom * (e.deltaY < 0 ? 1.08 : 0.92))); updateTransform(); }, { passive: false });
 
     document.getElementById('btn-zoom-in').onclick = () => { zoom = Math.min(2.0, zoom * 1.15); updateTransform(); };
     document.getElementById('btn-zoom-out').onclick = () => { zoom = Math.max(0.4, zoom * 0.85); updateTransform(); };
-    document.getElementById('btn-reset-zoom').onclick = () => { zoom = 1.0; pan = { x: 60, y: 50 }; updateTransform(); };
+    document.getElementById('btn-reset-zoom').onclick = () => {
+      zoom = 1.0;
+      pan = { x: 60, y: 50 };
+      customPositions = {};
+      updateTransform();
+      renderDAG();
+    };
     document.getElementById('btn-refresh').onclick = () => fetchGraphState();
 
     // Simulate blast
