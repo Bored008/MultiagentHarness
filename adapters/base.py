@@ -44,7 +44,9 @@ class ConflictListener:
     def _run(self) -> None:
         while not self.stop_event.is_set():
             try:
-                with websockets.sync.client.connect(self.ws_url) as ws:
+                with websockets.sync.client.connect(
+                    self.ws_url, open_timeout=3.0, close_timeout=1.0
+                ) as ws:
                     self.is_connected = True
                     self.connected_event.set()
                     while not self.stop_event.is_set():
@@ -57,12 +59,18 @@ class ConflictListener:
                             except Exception:
                                 continue
 
+                            event_name = data.get("event")
                             event_type = (
                                 data.get("event_type")
                                 or data.get("type")
-                                or data.get("event")
+                                or event_name
                             )
-                            if event_type == "EVENT_CONFLICT_DETECTED":
+                            conflict_events = {
+                                "EVENT_CONFLICT_DETECTED",
+                                "CONFLICT_DETECTED",
+                                "BLAST_RADIUS_ALERT",
+                            }
+                            if event_type in conflict_events or event_name in conflict_events:
                                 try:
                                     self.callback(data)
                                 except Exception as cb_err:
@@ -104,20 +112,26 @@ class BaseAgentAdapter:
         server_url: str = "http://localhost:8000",
         ws_url: Optional[str] = None,
         client: Optional[httpx.Client] = None,
+        base_url: Optional[str] = None,
+        tool_name: Optional[str] = None,
+        ws_path: str = "/ws/graph",
     ):
         self.agent_id = agent_id
-        self.server_url = server_url.rstrip("/")
+        effective_server_url = (base_url or server_url).rstrip("/")
+        self.server_url = effective_server_url
+        self.tool_name = tool_name or agent_id
 
         if ws_url:
             self.ws_url = ws_url
         else:
             base = self.server_url
+            clean_path = ws_path if ws_path.startswith("/") else f"/{ws_path}"
             if base.startswith("http://"):
-                self.ws_url = "ws://" + base[7:] + "/ws/graph"
+                self.ws_url = "ws://" + base[7:] + clean_path
             elif base.startswith("https://"):
-                self.ws_url = "wss://" + base[8:] + "/ws/graph"
+                self.ws_url = "wss://" + base[8:] + clean_path
             else:
-                self.ws_url = f"ws://{base}/ws/graph"
+                self.ws_url = f"ws://{base}{clean_path}"
 
         self._custom_client = client is not None
         self._client = client or httpx.Client(base_url=self.server_url, timeout=30.0)
@@ -138,6 +152,7 @@ class BaseAgentAdapter:
         payload = {
             "task_id": task_id,
             "agent_id": self.agent_id,
+            "tool_name": self.tool_name,
             "idempotency_key": key,
         }
         res = self._client.post(f"/api/tasks/{task_id}/claim", json=payload)
@@ -173,28 +188,34 @@ class BaseAgentAdapter:
         res.raise_for_status()
         return res.json()
 
+    # Alias submit_task to submit_result for contract completeness
+    submit_task = submit_result
+
     def listen_for_conflicts(
-        self, callback: Callable[[Dict[str, Any]], Any]
+        self,
+        callback: Callable[[Dict[str, Any]], Any],
+        ws_url: Optional[str] = None,
     ) -> ConflictListener:
         """
-        Start a background WebSocket listener on /ws/graph.
-        Triggers `callback` when EVENT_CONFLICT_DETECTED is received.
+        Start a background WebSocket listener on /ws or /ws/graph.
+        Triggers `callback` when EVENT_CONFLICT_DETECTED or BLAST_RADIUS_ALERT is received.
         """
-        listener = ConflictListener(ws_url=self.ws_url, callback=callback)
+        target_ws_url = ws_url or self.ws_url
+        listener = ConflictListener(ws_url=target_ws_url, callback=callback)
         listener.start()
         self._listeners.append(listener)
         return listener
 
-    def format_context_prompt(self, task_id: str) -> str:
+    def format_scoped_prompt(self, subgraph: Dict[str, Any]) -> str:
         """
-        Fetch scoped subgraph and compile a concise, structured prompt suitable
-        for autonomous execution in fresh agent sessions.
+        Compile a concise, structured markdown prompt (~300-800 tokens) suitable
+        for autonomous execution in fresh agent sessions from a scoped subgraph dictionary.
         """
-        data = self.get_subgraph(task_id)
-        task = data.get("task", {})
-        ancestors = data.get("ancestors", [])
-        is_stale = data.get("is_stale", False)
-        conflict_details = data.get("conflict_details")
+        task = subgraph.get("task", {})
+        ancestors = subgraph.get("ancestors", [])
+        is_stale = subgraph.get("is_stale", False)
+        conflict_details = subgraph.get("conflict_details")
+        task_id = task.get("id", "UNKNOWN")
 
         lines = [
             f"# Assigned Task: {task.get('title', task_id)} ({task_id})",
@@ -226,6 +247,16 @@ class BaseAgentAdapter:
                     lines.append(f"  Details: {json.dumps(anc_payload)}")
 
         return "\n".join(lines)
+
+    def format_context_prompt(self, task_id_or_subgraph: Any) -> str:
+        """
+        Fetch scoped subgraph (if task_id provided) or format existing subgraph,
+        compiling a concise, structured prompt suitable for autonomous agent execution.
+        """
+        if isinstance(task_id_or_subgraph, dict):
+            return self.format_scoped_prompt(task_id_or_subgraph)
+        data = self.get_subgraph(str(task_id_or_subgraph))
+        return self.format_scoped_prompt(data)
 
     def create_node(
         self,
@@ -293,3 +324,7 @@ class BaseAgentAdapter:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()
+
+
+# Alias for client interoperability as specified in PROJECT.md
+OmniHarnessClient = BaseAgentAdapter

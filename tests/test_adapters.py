@@ -13,7 +13,7 @@ import httpx
 import pytest
 import websockets.sync.server
 
-from adapters.base import BaseAgentAdapter, ConflictListener
+from adapters.base import BaseAgentAdapter, ConflictListener, OmniHarnessClient
 from adapters.claude_adapter import ClaudeCodeAdapter, build_parser as build_claude_parser, main as claude_main
 from adapters.codex_adapter import CodexAdapter, build_parser as build_codex_parser, main as codex_main
 from adapters.agy_adapter import AntigravityAdapter, build_parser as build_agy_parser, main as agy_main
@@ -32,14 +32,17 @@ def test_adapter_contract_symmetry():
     assert issubclass(claude_cls, BaseAgentAdapter)
     assert issubclass(codex_cls, BaseAgentAdapter)
     assert issubclass(agy_cls, BaseAgentAdapter)
+    assert OmniHarnessClient is BaseAgentAdapter
 
     # Core required methods
     required_methods = [
         "claim_task",
         "get_subgraph",
         "submit_result",
+        "submit_task",
         "listen_for_conflicts",
         "format_context_prompt",
+        "format_scoped_prompt",
         "create_node",
         "update_requirement",
         "get_graph",
@@ -67,6 +70,7 @@ def test_adapter_contract_symmetry():
 
     claude_inst.close()
     codex_inst.close()
+    agy_inst.close()
 
 
 def test_cli_parser_symmetry():
@@ -74,10 +78,21 @@ def test_cli_parser_symmetry():
     p1 = build_claude_parser()
     p2 = build_codex_parser()
 
-    # Both parsers have claim, subgraph, submit, listen
+    # Both parsers have claim, subgraph, submit, listen, graph, context
     p1_actions = {a.dest for a in p1._actions}
     p2_actions = {a.dest for a in p2._actions}
     assert p1_actions == p2_actions
+
+    # Verify common command destinations
+    assert "command" in p1_actions
+
+    # Extract subparser commands
+    subparsers_action1 = next(a for a in p1._actions if a.dest == "command")
+    subparsers_action2 = next(a for a in p2._actions if a.dest == "command")
+    assert set(subparsers_action1.choices.keys()) == set(subparsers_action2.choices.keys())
+    assert {"claim", "subgraph", "submit", "listen", "graph", "context"}.issubset(
+        set(subparsers_action1.choices.keys())
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -413,3 +428,376 @@ def test_helpers_and_context_manager():
     assert "/api/requirements/REQ-01/update" in paths_called
     assert "/api/graph" in paths_called
     assert "/api/nodes/NODE-1/events" in paths_called
+
+
+# ---------------------------------------------------------------------------
+# 6. OmniHarnessClient Alias & Extended Formatting Tests
+# ---------------------------------------------------------------------------
+
+def test_omniharness_client_alias_and_methods():
+    """Verify OmniHarnessClient alias, tool_name initialization, and prompt formatting."""
+    captured = {}
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        captured["path"] = request.url.path
+        if "claim" in request.url.path:
+            body = json.loads(request.read().decode())
+            captured["claim_body"] = body
+            return httpx.Response(200, json={"status": "IN_PROGRESS", "assigned_to": f"{body['agent_id']} ({body.get('tool_name')})"})
+        elif "submit" in request.url.path:
+            body = json.loads(request.read().decode())
+            captured["submit_body"] = body
+            return httpx.Response(200, json={"status": "COMPLETED", "version": 2})
+        return httpx.Response(404)
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(mock_handler), base_url="http://localhost:8000")
+
+    client = OmniHarnessClient(
+        base_url="http://localhost:8000",
+        agent_id="test-client-agent",
+        tool_name="omniharness-core",
+        client=mock_client,
+    )
+    assert client.agent_id == "test-client-agent"
+    assert client.tool_name == "omniharness-core"
+    assert client.server_url == "http://localhost:8000"
+
+    # Test claim_task passes tool_name
+    client.claim_task("TSK-01", idempotency_key="client-claim-001")
+    assert captured["claim_body"]["tool_name"] == "omniharness-core"
+    assert captured["claim_body"]["agent_id"] == "test-client-agent"
+
+    # Test submit_task alias
+    client.submit_task("TSK-01", output={"status": "done"}, idempotency_key="client-sub-001")
+    assert captured["submit_body"]["output"] == {"status": "done"}
+    assert captured["submit_body"]["idempotency_key"] == "client-sub-001"
+
+    # Test format_scoped_prompt directly with subgraph dict
+    subgraph_data = {
+        "task": {
+            "id": "TSK-05",
+            "title": "Crypto Verifier",
+            "status": "PENDING",
+            "version": 1,
+            "payload": {"algorithm": "Ed25519"},
+        },
+        "ancestors": [
+            {
+                "id": "REQ-01",
+                "title": "Auth Architecture",
+                "type": "REQUIREMENT",
+                "payload": {"spec": "Use asymmetric keys"},
+            }
+        ],
+        "is_stale": False,
+    }
+    prompt = client.format_scoped_prompt(subgraph_data)
+    assert "Assigned Task: Crypto Verifier (TSK-05)" in prompt
+    assert "Auth Architecture" in prompt
+    assert "Ed25519" in prompt
+    assert "STALE CONFLICT" not in prompt
+
+    # Test format_context_prompt with subgraph dict overload
+    prompt_from_dict = client.format_context_prompt(subgraph_data)
+    assert prompt_from_dict == prompt
+
+    client.close()
+
+
+# ---------------------------------------------------------------------------
+# 7. HTTP Error Mapping & Status Code Tests (409 Conflict, 404 Not Found)
+# ---------------------------------------------------------------------------
+
+def test_http_error_mapping_409_conflict(monkeypatch, capsys):
+    """Verify HTTP 409 Conflict raises HTTPStatusError and CLI exits with code 2."""
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            409,
+            json={"detail": "Task TSK-01 is already claimed by claude-code-cli"},
+        )
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(mock_handler), base_url="http://localhost:8000")
+
+    # 1. Direct adapter call raises httpx.HTTPStatusError
+    adapter = CodexAdapter(client=mock_client)
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        adapter.claim_task("TSK-01")
+    assert exc_info.value.response.status_code == 409
+    assert "Task TSK-01 is already claimed" in exc_info.value.response.json()["detail"]
+    adapter.close()
+
+    # 2. Claude CLI returns exit code 2 (Conflict)
+    monkeypatch.setattr(
+        ClaudeCodeAdapter,
+        "__init__",
+        lambda self, *args, **kwargs: super(ClaudeCodeAdapter, self).__init__(
+            agent_id="claude-code-cli",
+            server_url="http://localhost:8000",
+            client=mock_client,
+        )
+    )
+    code_claude = claude_main(["claim", "TSK-01"])
+    assert code_claude == 2
+    err_claude = capsys.readouterr().err
+    assert "[ERROR 409]" in err_claude
+    assert "already claimed" in err_claude
+
+    # 3. Codex CLI with --json outputs structured error and exits with code 2
+    monkeypatch.setattr(
+        CodexAdapter,
+        "__init__",
+        lambda self, *args, **kwargs: super(CodexAdapter, self).__init__(
+            agent_id="openai-codex-cursor",
+            server_url="http://localhost:8000",
+            client=mock_client,
+        )
+    )
+    code_codex = codex_main(["claim", "TSK-01", "--json"])
+    assert code_codex == 2
+    out_codex = capsys.readouterr().out
+    data_codex = json.loads(out_codex)
+    assert data_codex["status_code"] == 409
+    assert "already claimed" in data_codex["error"]
+
+
+def test_http_error_mapping_404_not_found(monkeypatch, capsys):
+    """Verify HTTP 404 Not Found raises HTTPStatusError and CLI exits with code 1."""
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            404,
+            json={"detail": "Task TSK-UNKNOWN not found in DAG"},
+        )
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(mock_handler), base_url="http://localhost:8000")
+
+    # 1. Direct adapter call raises httpx.HTTPStatusError
+    adapter = ClaudeCodeAdapter(client=mock_client)
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        adapter.get_subgraph("TSK-UNKNOWN")
+    assert exc_info.value.response.status_code == 404
+    adapter.close()
+
+    # 2. CLI handles 404 with code 1
+    monkeypatch.setattr(
+        ClaudeCodeAdapter,
+        "__init__",
+        lambda self, *args, **kwargs: super(ClaudeCodeAdapter, self).__init__(
+            agent_id="claude-code-cli",
+            server_url="http://localhost:8000",
+            client=mock_client,
+        )
+    )
+    code = claude_main(["subgraph", "TSK-UNKNOWN"])
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "[ERROR 404]" in err
+    assert "TSK-UNKNOWN not found" in err
+
+
+# ---------------------------------------------------------------------------
+# 8. CLI File Submission & Extended Commands Tests
+# ---------------------------------------------------------------------------
+
+def test_cli_submit_with_file_and_json(tmp_path, monkeypatch, capsys):
+    """Verify submit command handles --file (JSON and text) and --json output formatting."""
+    captured_payloads = []
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read().decode())
+        captured_payloads.append(body)
+        return httpx.Response(200, json={"status": "COMPLETED", "version": 2})
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(mock_handler), base_url="http://localhost:8000")
+
+    monkeypatch.setattr(
+        ClaudeCodeAdapter,
+        "__init__",
+        lambda self, *args, **kwargs: super(ClaudeCodeAdapter, self).__init__(
+            agent_id="claude-code-cli",
+            server_url="http://localhost:8000",
+            client=mock_client,
+        )
+    )
+    monkeypatch.setattr(
+        CodexAdapter,
+        "__init__",
+        lambda self, *args, **kwargs: super(CodexAdapter, self).__init__(
+            agent_id="openai-codex-cursor",
+            server_url="http://localhost:8000",
+            client=mock_client,
+        )
+    )
+
+    # 1. Submit JSON file via Claude CLI
+    json_file = tmp_path / "result.json"
+    json_file.write_text(json.dumps({"test_pass": True, "coverage": 98.5}), encoding="utf-8")
+    code1 = claude_main(["submit", "TSK-01", "--file", str(json_file)])
+    assert code1 == 0
+    assert captured_payloads[0]["output"] == {"test_pass": True, "coverage": 98.5}
+    out1 = capsys.readouterr().out
+    assert "Successfully submitted task: TSK-01" in out1
+
+    # 2. Submit non-JSON text file via Codex CLI with --json flag
+    txt_file = tmp_path / "notes.txt"
+    txt_file.write_text("All cryptographic modules verified.", encoding="utf-8")
+    code2 = codex_main(["submit", "TSK-02", "--file", str(txt_file), "--json"])
+    assert code2 == 0
+    assert captured_payloads[1]["output"] == {"content": "All cryptographic modules verified."}
+    out2 = capsys.readouterr().out
+    data = json.loads(out2)
+    assert data["status"] == "COMPLETED"
+
+
+def test_cli_graph_and_context_commands(monkeypatch, capsys):
+    """Verify graph command and context alias command across both CLIs."""
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/graph":
+            return httpx.Response(200, json={"nodes": [{"id": "REQ-01"}], "edges": [], "stats": {"total": 1}})
+        elif "subgraph" in request.url.path:
+            return httpx.Response(
+                200,
+                json={
+                    "task": {"id": "TSK-01", "title": "Setup", "status": "PENDING", "version": 1},
+                    "ancestors": [],
+                    "edges": [],
+                    "is_stale": False,
+                },
+            )
+        return httpx.Response(404)
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(mock_handler), base_url="http://localhost:8000")
+
+    monkeypatch.setattr(
+        ClaudeCodeAdapter,
+        "__init__",
+        lambda self, *args, **kwargs: super(ClaudeCodeAdapter, self).__init__(
+            agent_id="claude-code-cli",
+            server_url="http://localhost:8000",
+            client=mock_client,
+        )
+    )
+    monkeypatch.setattr(
+        CodexAdapter,
+        "__init__",
+        lambda self, *args, **kwargs: super(CodexAdapter, self).__init__(
+            agent_id="openai-codex-cursor",
+            server_url="http://localhost:8000",
+            client=mock_client,
+        )
+    )
+
+    # Claude graph command
+    code1 = claude_main(["graph"])
+    assert code1 == 0
+    out1 = capsys.readouterr().out
+    graph_data = json.loads(out1)
+    assert graph_data["stats"]["total"] == 1
+
+    # Codex context command
+    code2 = codex_main(["context", "TSK-01"])
+    assert code2 == 0
+    out2 = capsys.readouterr().out
+    assert "Assigned Task: Setup (TSK-01)" in out2
+
+
+# ---------------------------------------------------------------------------
+# 9. Extended WebSocket Conflict & BLAST_RADIUS_ALERT Catching Tests
+# ---------------------------------------------------------------------------
+
+def test_websocket_conflict_listener_catches_blast_radius_and_multiple_frames():
+    """
+    Verify listen_for_conflicts catches BLAST_RADIUS_ALERT, CONFLICT_DETECTED,
+    and EVENT_CONFLICT_DETECTED frames, while ignoring non-conflict messages.
+    """
+    def ws_handler(ws):
+        # 1. Ignored event: node created
+        ws.send(json.dumps({"event_type": "EVENT_NODE_CREATED", "node_id": "REQ-01"}))
+        time.sleep(0.04)
+
+        # 2. Blast radius alert frame (SHOULD be caught)
+        ws.send(
+            json.dumps({
+                "event": "BLAST_RADIUS_ALERT",
+                "event_type": "BLAST_RADIUS_ALERT",
+                "root_cause_node": "REQ-01",
+                "invalidated_nodes": ["TSK-01", "TSK-02"],
+                "severity": "CRITICAL",
+                "message": "Requirement REQ-01 updated. 2 downstream nodes invalidated.",
+            })
+        )
+        time.sleep(0.04)
+
+        # 3. Individual conflict detected frame (SHOULD be caught)
+        ws.send(
+            json.dumps({
+                "event": "CONFLICT_DETECTED",
+                "event_type": "EVENT_CONFLICT_DETECTED",
+                "node_id": "TSK-01",
+                "data": {"reason": "Upstream specification modified"},
+            })
+        )
+        time.sleep(0.04)
+
+        # 4. Blast radius alert without event_type key (SHOULD be caught)
+        ws.send(
+            json.dumps({
+                "event": "BLAST_RADIUS_ALERT",
+                "root_cause_node": "REQ-02",
+                "invalidated_nodes": ["TSK-03"],
+                "severity": "CRITICAL",
+            })
+        )
+        time.sleep(0.04)
+
+        # 5. Ignored event: task submitted
+        ws.send(json.dumps({"event_type": "EVENT_TASK_SUBMITTED", "node_id": "TSK-04"}))
+
+    server = websockets.sync.server.serve(ws_handler, "127.0.0.1", 0)
+    server_port = server.socket.getsockname()[1]
+    ws_url = f"ws://127.0.0.1:{server_port}"
+
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    adapter = ClaudeCodeAdapter(ws_url=ws_url)
+    received_conflicts: List[Dict[str, Any]] = []
+    conflict_count_event = threading.Event()
+
+    def on_conflict(evt: Dict[str, Any]):
+        received_conflicts.append(evt)
+        if len(received_conflicts) >= 3:
+            conflict_count_event.set()
+
+    listener = adapter.listen_for_conflicts(on_conflict)
+
+    assert conflict_count_event.wait(timeout=4.0), "Timed out waiting for 3 conflict/blast radius events"
+    assert len(received_conflicts) == 3
+
+    # Check caught events
+    event_names = [e.get("event") or e.get("event_type") for e in received_conflicts]
+    assert "BLAST_RADIUS_ALERT" in event_names
+    assert "CONFLICT_DETECTED" in event_names or "EVENT_CONFLICT_DETECTED" in event_names
+
+    # Clean shutdown
+    listener.stop()
+    assert listener.is_alive() is False
+    server.shutdown()
+    adapter.close()
+
+
+def test_websocket_listener_endpoint_paths():
+    """Verify WebSocket URL construction for /ws and /ws/graph and custom ws_url override."""
+    # 1. Default ws_path (/ws/graph)
+    a1 = BaseAgentAdapter(agent_id="a1", server_url="http://localhost:8000")
+    assert a1.ws_url == "ws://localhost:8000/ws/graph"
+    a1.close()
+
+    # 2. Custom ws_path (/ws)
+    a2 = BaseAgentAdapter(agent_id="a2", server_url="http://localhost:8000", ws_path="/ws")
+    assert a2.ws_url == "ws://localhost:8000/ws"
+    a2.close()
+
+    # 3. Explicit ws_url
+    a3 = BaseAgentAdapter(agent_id="a3", server_url="http://localhost:8000", ws_url="wss://remote-hub.internal/ws/live")
+    assert a3.ws_url == "wss://remote-hub.internal/ws/live"
+    a3.close()

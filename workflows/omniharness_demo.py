@@ -373,7 +373,7 @@ def run_demo(server_url: Optional[str] = None) -> bool:
             if "CONFLICT" in (ev.get("event_type") or ev.get("type") or "")
         }
         log_info("WebSocket Conflict Events Received", len(ws_events))
-        log_info("Invalidated Nodes via WS", sorted(list(conflict_node_ids)))
+        log_info("Invalidated Nodes via WS", sorted([n for n in conflict_node_ids if n is not None]))
 
         # Verify TSK-03 is now flagged STALE_CONFLICT in DAG
         node_tsk03 = client.get("/api/nodes/TSK-03").json()
