@@ -19,3 +19,10 @@ NexHack 2.0 — Problem Statement 01: Multi-Agent Harness for Shared Team Knowle
 - **L1 Context**: `notes/active-context.md` (via Obsidian junction `C:\Users\Bored\Documents\Obsidian Vault\NexHack-OmniHarness`).
 - **Daily Logs**: `notes/daily/YYYY-MM-DD.md`.
 - **Knowledge Graph**: Keep codebase mapped via `graphify .`.
+
+## 4. Coding Agent Task Workflow (Zero-Ceremony)
+When asked to work on a task from OmniHarness (local or `https://multiagentharness.onrender.com`):
+- **Discover live state & protocol**: `GET /llms.txt` (or `/agent` / `/api/tasks/ready`).
+- **One-time laptop setup**: `python -m adapters.<claude|codex|agy>_adapter connect <SERVER_URL> --agent-id <AGENT_ID>` (saves `.omniharness.json`).
+- **Claim & pull scoped context**: `python -m adapters.<claude|codex|agy>_adapter start [TASK_ID]` (auto-picks next ready task if ID omitted).
+- **Submit completed work**: `python -m adapters.<claude|codex|agy>_adapter done <TASK_ID> "<summary>"` (or `--file path/to/output.json`).

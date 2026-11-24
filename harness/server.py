@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from harness.graph import (
     CycleError,
@@ -35,10 +35,12 @@ from harness.models import (
     Node,
     NodeStatus,
     NodeType,
+    SeedGraphRequest,
     SubgraphResponse,
     SubmitTaskRequest,
     UpdateRequirementRequest,
 )
+from harness.seeds import get_seed_nodes, list_seed_templates
 from harness.store import EventStore
 
 logger = logging.getLogger("omniharness.server")
@@ -199,6 +201,36 @@ def create_app(
 </html>"""
         )
 
+    @app.get("/llms.txt", response_class=PlainTextResponse)
+    @app.get("/agent", response_class=PlainTextResponse)
+    async def get_agent_protocol(request: Request):
+        base_url = str(request.base_url).rstrip("/")
+        ready = dag.get_ready_tasks()
+        ready_lines = "\n".join(f"  - {t.id}: {t.title}" for t in ready) or "  (none)"
+        state = dag.get_graph_state()
+        return PlainTextResponse(
+            content=(
+                "# OmniHarness Agent Protocol\n"
+                f"Server: {base_url}\n"
+                f"Dashboard: {base_url}/dashboard\n"
+                f"Nodes: {len(state.nodes)} | Ready Tasks: {len(ready)}\n\n"
+                "## Currently Ready Tasks\n"
+                f"{ready_lines}\n\n"
+                "## REST Workflow (any coding agent)\n"
+                f"1. List ready tasks:  GET  {base_url}/api/tasks/ready\n"
+                f"2. Claim task lease:  POST {base_url}/api/tasks/{{TASK_ID}}/claim\n"
+                "   Body: {\"task_id\":\"{TASK_ID}\",\"agent_id\":\"<agent>\",\"tool_name\":\"<tool>\",\"idempotency_key\":\"claim-{TASK_ID}-<rand>\"}\n"
+                f"3. Get scoped spec:   GET  {base_url}/api/tasks/{{TASK_ID}}/subgraph\n"
+                f"4. Submit result:     POST {base_url}/api/tasks/{{TASK_ID}}/submit\n"
+                "   Body: {\"task_id\":\"{TASK_ID}\",\"agent_id\":\"<agent>\",\"idempotency_key\":\"submit-{TASK_ID}-<rand>\",\"output\":{\"summary\":\"...\"}}\n\n"
+                "## Short CLI (inside MultiagentHarness repo)\n"
+                f"  python -m adapters.codex_adapter connect {base_url} --agent-id <agent>\n"
+                "  python -m adapters.codex_adapter start <TASK_ID>\n"
+                "  python -m adapters.codex_adapter done  <TASK_ID> \"<summary>\"\n"
+                "  (Or use adapters.claude_adapter / adapters.agy_adapter identically.)\n"
+            )
+        )
+
     @app.get("/todo", response_class=HTMLResponse)
     async def get_todo_app():
         locations = [
@@ -236,7 +268,7 @@ def create_app(
                 id=req.id,
                 title=req.title,
                 type=req.type,
-                status=NodeStatus.PENDING,
+                status=req.status or NodeStatus.PENDING,
                 payload=req.payload,
                 created_at=time.time(),
                 updated_at=time.time(),
@@ -558,6 +590,74 @@ def create_app(
     @app.get("/api/nodes/{node_id}/events", response_model=List[Event])
     async def get_node_events(node_id: str):
         return st.get_events_for_node(node_id)
+
+    @app.get("/tasks/ready", response_model=List[Node])
+    @app.get("/api/tasks/ready", response_model=List[Node])
+    async def get_ready_tasks():
+        return dag.get_ready_tasks()
+
+    @app.get("/api/seed/templates")
+    async def get_seed_templates():
+        return {"templates": list_seed_templates()}
+
+    async def _apply_seed_template(template: str, reset_first: bool = True) -> Dict[str, Any]:
+        try:
+            seed_nodes = get_seed_nodes(template)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+
+        async with mutation_lock:
+            if reset_first:
+                dag.reset()
+
+            now = time.time()
+            created_count = 0
+            for item in seed_nodes:
+                if dag.has_node(item["id"]):
+                    continue
+                node = Node(
+                    id=item["id"],
+                    title=item["title"],
+                    type=NodeType(item["type"]),
+                    status=NodeStatus(item.get("status", "PENDING")),
+                    payload=item.get("payload", {}),
+                    created_at=now,
+                    updated_at=now,
+                )
+                dag.add_node(
+                    node=node,
+                    dependencies=item.get("dependencies", []),
+                    actor=item.get("actor", "system"),
+                    idempotency_key=item.get("idempotency_key"),
+                )
+                created_count += 1
+
+        await ws_manager.broadcast({
+            "event": "GRAPH_SEEDED",
+            "event_type": "GRAPH_SEEDED",
+            "type": "GRAPH_SEEDED",
+            "timestamp": time.time(),
+            "actor": "seed-engine",
+            "data": {"template": template, "nodes_created": created_count},
+        })
+
+        state = dag.get_graph_state()
+        ready_ids = [n.id for n in dag.get_ready_tasks()]
+        return {
+            "status": "success",
+            "template": template,
+            "nodes_created": created_count,
+            "total_nodes": len(state.nodes),
+            "ready_tasks": ready_ids,
+        }
+
+    @app.post("/api/seed")
+    async def seed_graph_body(req: SeedGraphRequest = SeedGraphRequest()):
+        return await _apply_seed_template(req.template, reset_first=req.reset)
+
+    @app.post("/api/seed/{template}")
+    async def seed_graph_template(template: str, reset: bool = True):
+        return await _apply_seed_template(template, reset_first=reset)
 
     @app.post("/reset")
     @app.post("/api/reset")

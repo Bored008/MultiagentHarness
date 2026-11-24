@@ -801,3 +801,259 @@ def test_websocket_listener_endpoint_paths():
     a3 = BaseAgentAdapter(agent_id="a3", server_url="http://localhost:8000", ws_url="wss://remote-hub.internal/ws/live")
     assert a3.ws_url == "wss://remote-hub.internal/ws/live"
     a3.close()
+
+
+# ---------------------------------------------------------------------------
+# 10. Symmetrical CLI Shortcuts & Config Resolution Tests
+# ---------------------------------------------------------------------------
+
+def test_three_way_cli_parser_symmetry():
+    """Verify Claude, Codex, and Antigravity parsers have identical actions and subcommands."""
+    p_claude = build_claude_parser()
+    p_codex = build_codex_parser()
+    p_agy = build_agy_parser()
+
+    actions_claude = {a.dest for a in p_claude._actions}
+    actions_codex = {a.dest for a in p_codex._actions}
+    actions_agy = {a.dest for a in p_agy._actions}
+    assert actions_claude == actions_codex == actions_agy
+
+    sub_claude = next(a for a in p_claude._actions if a.dest == "command")
+    sub_codex = next(a for a in p_codex._actions if a.dest == "command")
+    sub_agy = next(a for a in p_agy._actions if a.dest == "command")
+
+    expected_commands = {
+        "connect", "tasks", "start", "done", "seed", "reset",
+        "claim", "subgraph", "context", "submit", "listen", "graph",
+    }
+    assert set(sub_claude.choices.keys()) == set(sub_codex.choices.keys()) == set(sub_agy.choices.keys())
+    assert expected_commands.issubset(set(sub_claude.choices.keys()))
+
+
+def test_cli_config_resolution_precedence(tmp_path, monkeypatch):
+    """Verify CLI flags > env vars > CWD .omniharness.json > ~/.omniharness.json > defaults."""
+    from pathlib import Path
+    from adapters.cli import resolve_cli_config
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.chdir(work_dir)
+    monkeypatch.delenv("OMNIHARNESS_SERVER", raising=False)
+    monkeypatch.delenv("OMNIHARNESS_AGENT_ID", raising=False)
+
+    # 1. Defaults when no config files or env vars exist
+    srv, ag = resolve_cli_config(None, None, "claude-code-cli")
+    assert srv == "http://localhost:8000"
+    assert ag == "claude-code-cli"
+
+    # 2. Home ~/.omniharness.json overrides defaults
+    (fake_home / ".omniharness.json").write_text(
+        json.dumps({"server": "http://home-hub:9000/", "agent_id": "home-agent"}),
+        encoding="utf-8",
+    )
+    srv, ag = resolve_cli_config(None, None, "claude-code-cli")
+    assert srv == "http://home-hub:9000"
+    assert ag == "home-agent"
+
+    # 3. CWD .omniharness.json overrides home profile
+    (work_dir / ".omniharness.json").write_text(
+        json.dumps({"server": "http://cwd-hub:8100/", "agent_id": "cwd-agent"}),
+        encoding="utf-8",
+    )
+    srv, ag = resolve_cli_config(None, None, "claude-code-cli")
+    assert srv == "http://cwd-hub:8100"
+    assert ag == "cwd-agent"
+
+    # 4. Env vars override .omniharness.json
+    monkeypatch.setenv("OMNIHARNESS_SERVER", "https://env-hub.example.com/")
+    monkeypatch.setenv("OMNIHARNESS_AGENT_ID", "env-agent")
+    srv, ag = resolve_cli_config(None, None, "claude-code-cli")
+    assert srv == "https://env-hub.example.com"
+    assert ag == "env-agent"
+
+    # 5. Explicit CLI flags override env vars and profiles
+    srv, ag = resolve_cli_config("http://flag-hub:7777/", "flag-agent", "claude-code-cli")
+    assert srv == "http://flag-hub:7777"
+    assert ag == "flag-agent"
+
+
+def test_cli_connect_command_saves_profile_and_checks_health(tmp_path, monkeypatch, capsys):
+    """Verify `connect` saves .omniharness.json in CWD and pings /health (including offline tolerance)."""
+    from pathlib import Path
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.chdir(work_dir)
+    monkeypatch.delenv("OMNIHARNESS_SERVER", raising=False)
+    monkeypatch.delenv("OMNIHARNESS_AGENT_ID", raising=False)
+
+    def ok_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "healthy", "nodes_count": 8})
+        return httpx.Response(404)
+
+    ok_client = httpx.Client(transport=httpx.MockTransport(ok_handler), base_url="http://team-hub:8000")
+    captured_init: Dict[str, Any] = {}
+
+    def fake_agy_init(self, agent_id="antigravity-agent", server_url="http://localhost:8000", ws_url=None, client=None):
+        captured_init["agent_id"] = agent_id
+        captured_init["server_url"] = server_url
+        super(AntigravityAdapter, self).__init__(
+            agent_id=agent_id,
+            server_url=server_url,
+            ws_url=ws_url,
+            client=ok_client,
+        )
+
+    monkeypatch.setattr(AntigravityAdapter, "__init__", fake_agy_init)
+
+    code = agy_main(["connect", "http://team-hub:8000/", "--agent-id", "laptop2-agy"])
+    assert code == 0
+    assert captured_init["server_url"] == "http://team-hub:8000"
+    assert captured_init["agent_id"] == "laptop2-agy"
+
+    saved = json.loads((work_dir / ".omniharness.json").read_text(encoding="utf-8"))
+    assert saved == {"server": "http://team-hub:8000", "agent_id": "laptop2-agy"}
+    out = capsys.readouterr().out
+    assert "Health: healthy (nodes: 8)" in out
+
+    # Unreachable server still saves profile cleanly with warning
+    def err_handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    err_client = httpx.Client(transport=httpx.MockTransport(err_handler), base_url="http://dead-hub:8000")
+    monkeypatch.setattr(
+        ClaudeCodeAdapter,
+        "__init__",
+        lambda self, agent_id="claude-code-cli", server_url="http://localhost:8000", ws_url=None, client=None: super(
+            ClaudeCodeAdapter, self
+        ).__init__(agent_id=agent_id, server_url=server_url, client=err_client),
+    )
+
+    code2 = claude_main(["connect", "http://dead-hub:8000", "--json"])
+    assert code2 == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["saved"] is True
+    assert payload["reachable"] is False
+    assert payload["warning"] is not None
+
+
+def test_cli_tasks_start_done_seed_reset_shortcuts(tmp_path, monkeypatch, capsys):
+    """Verify tasks, start (explicit + auto-next), done, seed, and reset shortcuts across adapters."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OMNIHARNESS_SERVER", raising=False)
+    monkeypatch.delenv("OMNIHARNESS_AGENT_ID", raising=False)
+
+    calls: List[Dict[str, Any]] = []
+    ready_mode = {"has_ready": True}
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        body = json.loads(request.read().decode()) if request.content else None
+        calls.append({"method": request.method, "path": path, "query": str(request.url.query), "body": body})
+
+        if path == "/api/graph":
+            return httpx.Response(200, json={
+                "nodes": [
+                    {"id": "DEC-01", "title": "Arch", "type": "DECISION", "status": "COMPLETED"},
+                    {"id": "TSK-01", "title": "Board Engine", "type": "TASK", "status": "PENDING"},
+                    {"id": "TSK-02", "title": "Minimax", "type": "TASK", "status": "PENDING"},
+                ],
+                "edges": [
+                    {"source": "DEC-01", "target": "TSK-01"},
+                    {"source": "TSK-01", "target": "TSK-02"},
+                ],
+            })
+        if path == "/api/tasks/ready":
+            if ready_mode["has_ready"]:
+                return httpx.Response(200, json=[{"id": "TSK-01", "title": "Board Engine", "type": "TASK", "status": "PENDING"}])
+            return httpx.Response(200, json=[])
+        if path in ("/api/tasks/TSK-01/claim", "/api/tasks/TSK-02/claim"):
+            tid = path.split("/")[3]
+            return httpx.Response(200, json={"id": tid, "status": "IN_PROGRESS", "assigned_to": body["agent_id"]})
+        if path in ("/api/tasks/TSK-01/subgraph", "/api/tasks/TSK-02/subgraph"):
+            tid = path.split("/")[3]
+            return httpx.Response(200, json={
+                "task": {"id": tid, "title": f"Task {tid}", "status": "IN_PROGRESS", "version": 1, "payload": {}},
+                "ancestors": [],
+                "edges": [],
+                "is_stale": False,
+            })
+        if path in ("/api/tasks/TSK-01/submit", "/api/tasks/TSK-02/submit"):
+            return httpx.Response(200, json={"status": "COMPLETED", "version": 2})
+        if path.startswith("/api/seed/"):
+            tpl = path.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"status": "success", "template": tpl, "nodes_created": 8, "total_nodes": 8, "ready_tasks": ["TSK-01"]})
+        if path == "/api/reset":
+            return httpx.Response(200, json={"status": "success"})
+        return httpx.Response(404)
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(mock_handler), base_url="http://localhost:8000")
+
+    for cls, default_id in (
+        (ClaudeCodeAdapter, "claude-code-cli"),
+        (CodexAdapter, "openai-codex-cursor"),
+        (AntigravityAdapter, "antigravity-agent"),
+    ):
+        monkeypatch.setattr(
+            cls,
+            "__init__",
+            lambda self, agent_id=default_id, server_url="http://localhost:8000", ws_url=None, client=None, _cls=cls: super(
+                _cls, self
+            ).__init__(agent_id=agent_id, server_url=server_url, client=mock_client),
+        )
+
+    copied_texts: List[str] = []
+    monkeypatch.setattr("adapters.cli._copy_to_clipboard", lambda txt: copied_texts.append(txt) or True)
+
+    # 1. `tasks` highlights [READY] tasks
+    assert claude_main(["tasks"]) == 0
+    tasks_out = capsys.readouterr().out
+    assert "[READY] [TASK] TSK-01: Board Engine (PENDING)" in tasks_out
+    assert "[READY] [TASK] TSK-02" not in tasks_out
+
+    # 2. `start` without task_id auto-picks first ready task (TSK-01) and copies prompt with --copy
+    assert codex_main(["start", "--copy"]) == 0
+    start_auto_out = capsys.readouterr().out
+    assert "Started task: TSK-01" in start_auto_out
+    assert "Prompt copied to clipboard" in start_auto_out
+    assert "Assigned Task: Task TSK-01 (TSK-01)" in start_auto_out
+    assert len(copied_texts) == 1
+
+    # 3. `start` with explicit task_id
+    assert agy_main(["start", "TSK-02", "--idempotency-key", "ik-start-2"]) == 0
+    start_exp_out = capsys.readouterr().out
+    assert "Started task: TSK-02" in start_exp_out
+
+    # 4. `start` with no ready tasks returns 1
+    ready_mode["has_ready"] = False
+    assert claude_main(["start"]) == 1
+    assert "[ERROR 404] No ready tasks available to start." in capsys.readouterr().err
+
+    # 5. `done` with positional summary and without positional summary
+    assert codex_main(["done", "TSK-01", "Implemented 8-way win check"]) == 0
+    _ = capsys.readouterr()
+    assert claude_main(["done", "TSK-02"]) == 0
+    _ = capsys.readouterr()
+
+    submit_bodies = [c["body"] for c in calls if c["path"].endswith("/submit")]
+    assert submit_bodies[0]["output"] == {"summary": "Implemented 8-way win check"}
+    assert submit_bodies[1]["output"] == {"summary": "Completed TSK-02"}
+
+    # 6. `seed` (default tictactoe + explicit auth --no-reset) & `reset`
+    assert agy_main(["seed"]) == 0
+    assert "Seeded 'tictactoe'" in capsys.readouterr().out
+
+    assert claude_main(["seed", "auth", "--no-reset"]) == 0
+    assert "Seeded 'auth'" in capsys.readouterr().out
+    seed_auth_call = [c for c in calls if c["path"] == "/api/seed/auth"][-1]
+    assert "reset=false" in seed_auth_call["query"]
+
+    assert codex_main(["reset"]) == 0
+    assert "successfully reset" in capsys.readouterr().out

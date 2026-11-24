@@ -80,10 +80,16 @@ class CreateNodeRequest(BaseModel):
     id: str
     title: str
     type: NodeType
+    status: Optional[NodeStatus] = None
     payload: Dict[str, Any] = Field(default_factory=dict)
     dependencies: List[str] = Field(default_factory=list)
     idempotency_key: Optional[str] = None
     actor: str = "system"
+
+
+class SeedGraphRequest(BaseModel):
+    template: str = "tictactoe"
+    reset: bool = True
 
 
 class UpdateRequirementRequest(BaseModel):

@@ -1,9 +1,25 @@
 <!DOCTYPE html>
+<!--
+OMNIHARNESS AGENT PROTOCOL (for AI coding agents reading this page or HTML file)
+Plain-text live guide & ready tasks: GET /llms.txt or GET /agent
+API Base: same origin as this page (or https://multiagentharness.onrender.com)
+
+4-Step Task Loop (REST):
+  1. List ready tasks:   GET  /api/tasks/ready
+  2. Claim task lease:   POST /api/tasks/{TASK_ID}/claim   {"task_id":"{TASK_ID}","agent_id":"<your-agent>","tool_name":"<tool>","idempotency_key":"claim-{TASK_ID}-<rand>"}
+  3. Fetch scoped spec:  GET  /api/tasks/{TASK_ID}/subgraph
+  4. Submit completed:   POST /api/tasks/{TASK_ID}/submit  {"task_id":"{TASK_ID}","agent_id":"<your-agent>","idempotency_key":"submit-{TASK_ID}-<rand>","output":{"summary":"..."}}
+
+Short CLI (if inside repo; save server once with `connect`):
+  python -m adapters.codex_adapter connect <SERVER_URL> --agent-id <AGENT_ID>
+  python -m adapters.codex_adapter start <TASK_ID>
+  python -m adapters.codex_adapter done  <TASK_ID> "<summary>"
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OmniHarness — Multi-Agent Knowledge DAG & Blast Radius Hub</title>
+  <title>OmniHarness — Multi-Agent Knowledge DAG &amp; Blast Radius Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -11,47 +27,54 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg-canvas:     #f5f5f5;
-      --bg-surface:    #ffffff;
-      --bg-surface-alt:#fafafa;
-      --bg-hover:      #f0f0f0;
-      --border-light:  #e5e5e5;
-      --border-mid:    #d4d4d4;
-      --text-primary:  #262626;
-      --text-secondary:#525252;
-      --text-tertiary: #737373;
-      --text-muted:    #a3a3a3;
+      --bg-canvas:      #fafbfd;
+      --bg-surface:     #ffffff;
+      --bg-surface-alt: #f6f7f9;
+      --bg-hover:       #eef1f5;
+      --border-light:   #e5e8ed;
+      --border-mid:     #cbd2dc;
+      --text-primary:   #202734;
+      --text-secondary: #475467;
+      --text-tertiary:  #657080;
+      --text-muted:     #8892a0;
 
-      --accent-primary:   #ff6d5a;
-      --accent-primary-bg:#fff0ee;
-      --accent-blue:      #4a90d9;
-      --accent-blue-bg:   #eef4fb;
-      --accent-green:     #34a853;
-      --accent-green-bg:  #edf7ef;
-      --accent-amber:     #f5a623;
-      --accent-amber-bg:  #fef7e6;
+      --accent-coral:     #f25f50;
+      --accent-coral-bg:  #fff0ed;
+      --accent-green:     #32866a;
+      --accent-green-bg:  #edf6f0;
+      --accent-green-sel: #f5faf7;
+      --accent-blue:      #3f7dd8;
+      --accent-blue-bg:   #edf3fc;
+      --accent-blue-sel:  #f4f8fe;
       --accent-purple:    #7c5cbf;
       --accent-purple-bg: #f3effa;
-      --accent-red:       #d94f4f;
+      --accent-purple-sel:#f7f4fc;
+      --accent-amber:     #d97706;
+      --accent-amber-bg:  #fef7e6;
+      --accent-red:       #dc4c4c;
       --accent-red-bg:    #fdf0f0;
 
-      --shadow-sm:   0 1px 3px rgba(0,0,0,0.06);
-      --shadow-md:   0 4px 12px rgba(0,0,0,0.08);
-      --shadow-lg:   0 10px 30px rgba(0,0,0,0.10);
-      --shadow-node: 0 3px 12px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.06);
-      --shadow-node-hover: 0 8px 25px rgba(0,0,0,0.12), 0 3px 8px rgba(0,0,0,0.08);
-      --shadow-node-conflict: 0 4px 20px rgba(217,79,79,0.25), 0 2px 8px rgba(217,79,79,0.15);
+      --edge-solid:     #cbd5e1;
+      --edge-skip:      #b49ee8;
 
-      --radius-sm: 6px;
-      --radius-md: 8px;
-      --radius-lg: 12px;
+      --shadow-sm:   0 1px 2px rgba(16, 24, 40, 0.05);
+      --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.04), 0 1px 2px rgba(16, 24, 40, 0.03);
+      --shadow-hover:0 4px 12px rgba(16, 24, 40, 0.08);
+      --shadow-modal:0 16px 40px rgba(16, 24, 40, 0.14);
+
+      --radius-sm: 5px;
+      --radius-md: 7px;
+      --radius-lg: 8px;
+    }
+
+    html, body {
+      height: 100%;
     }
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg-canvas);
+      background: var(--bg-surface);
       color: var(--text-primary);
-      min-height: 100vh;
       display: flex;
       flex-direction: column;
       -webkit-font-smoothing: antialiased;
@@ -60,284 +83,1047 @@
 
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: #d0d5dd; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #98a2b3; }
 
     /* ---- Header ---- */
     .app-header {
-      height: 54px;
+      height: 72px;
       background: var(--bg-surface);
-      border-bottom: 1px solid var(--border-light);
-      padding: 0 20px;
-      display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 0; z-index: 30;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-shrink: 0;
+      z-index: 30;
     }
-    .header-left { display: flex; align-items: center; gap: 16px; }
-    .logo-mark {
-      width: 32px; height: 32px; border-radius: var(--radius-md);
-      background: linear-gradient(135deg, #ff6d5a, #ff4839);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 16px; color: #fff;
-      box-shadow: 0 2px 8px rgba(255,109,90,0.3);
-    }
-    .brand-text h1 {
-      font-size: 15px; font-weight: 600; color: var(--text-primary);
-      display: flex; align-items: center; gap: 8px;
-    }
-    .brand-text h1 .tag {
-      font-size: 10px; font-weight: 600;
-      padding: 2px 8px; border-radius: 10px;
-      background: var(--accent-primary-bg); color: var(--accent-primary);
-    }
-    .brand-text p { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
 
-    .agent-badges { display: flex; align-items: center; gap: 8px; padding-left: 16px; margin-left: 16px; border-left: 1px solid var(--border-light); }
-    .agent-badge {
-      display: flex; align-items: center; gap: 6px;
-      padding: 4px 10px; border-radius: 20px;
-      background: var(--bg-surface-alt); border: 1px solid var(--border-light);
-      font-size: 11px; font-weight: 500; color: var(--text-secondary);
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      min-width: 0;
     }
-    .agent-dot { width: 7px; height: 7px; border-radius: 50%; position: relative; }
-    .agent-dot::after {
-      content: ''; position: absolute; inset: -2px; border-radius: 50%;
-      animation: agentPulse 2s infinite;
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .logo-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: var(--accent-coral);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 19px;
+      line-height: 28px;
+      color: #ffffff;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .brand-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 23px;
+    }
+
+    .brand-text h1 {
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 25px;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .brand-tag {
+      height: 24px;
+      padding: 0 8px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-coral-bg);
+      color: var(--accent-coral);
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 15px;
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+    }
+
+    .brand-subtitle {
+      font-size: 10px;
+      font-weight: 400;
+      line-height: 15px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .agent-badges {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 8px;
+      flex-shrink: 0;
+    }
+
+    .agent-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface-alt);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 16px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+
+    .agent-badge.active {
+      background: #edf2f7;
+      color: var(--text-primary);
+      box-shadow: inset 0 0 0 1px #d9e0ea;
+    }
+
+    .agent-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
     }
     .agent-dot.claude { background: #d97706; }
-    .agent-dot.claude::after { box-shadow: 0 0 0 0 rgba(217,119,6,0.4); }
-    .agent-dot.codex { background: #34a853; }
-    .agent-dot.codex::after { box-shadow: 0 0 0 0 rgba(52,168,83,0.4); }
-    .agent-dot.agy { background: #4a90d9; }
-    .agent-dot.agy::after { box-shadow: 0 0 0 0 rgba(74,144,217,0.4); }
+    .agent-dot.codex  { background: #32866a; }
+    .agent-dot.agy    { background: #3f7dd8; }
 
-    @keyframes agentPulse {
-      0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.8); opacity: 0; }
-      100% { transform: scale(1); opacity: 0; }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
     }
 
-    .header-right { display: flex; align-items: center; gap: 10px; }
     .ws-status {
-      display: flex; align-items: center; gap: 6px;
-      padding: 5px 12px; border-radius: 20px;
-      background: var(--bg-surface-alt); border: 1px solid var(--border-light);
-      font-size: 11px; color: var(--text-secondary); font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-right: 4px;
+      min-width: 82px;
     }
-    .ws-dot-live { width: 7px; height: 7px; border-radius: 50%; background: #34a853; animation: wsBlink 1.5s infinite; }
-    @keyframes wsBlink { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    .ws-dot-reconnecting { background: #f5a623 !important; }
-    .ws-dot-off { background: #d4d4d4 !important; animation: none !important; }
+
+    .ws-dot-live {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      flex-shrink: 0;
+    }
+    .ws-dot-reconnecting { background: var(--accent-amber) !important; animation: wsBlink 1.2s infinite; }
+    .ws-dot-off { background: var(--text-muted) !important; }
+    @keyframes wsBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    .ws-labels {
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+    }
+    .ws-text {
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 15px;
+      color: var(--accent-green);
+    }
+    .ws-text.reconnecting { color: var(--accent-amber); }
+    .ws-text.off { color: var(--text-tertiary); }
+    .ws-latency {
+      font-size: 10px;
+      font-weight: 400;
+      line-height: 14px;
+      color: var(--text-tertiary);
+    }
 
     .btn {
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 6px 14px; border-radius: var(--radius-md);
-      font-size: 12px; font-weight: 500; cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 17px;
+      cursor: pointer;
       border: 1px solid var(--border-light);
-      background: var(--bg-surface); color: var(--text-secondary);
-      transition: all 0.2s; font-family: inherit;
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
     }
-    .btn:hover { background: var(--bg-hover); border-color: var(--border-mid); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-    .btn-primary { background: linear-gradient(135deg, #ff6d5a, #ff4839); color: #fff; border-color: #ff6d5a; }
-    .btn-primary:hover { opacity: 0.9; box-shadow: 0 4px 12px rgba(255,109,90,0.3); }
-    .btn svg { width: 14px; height: 14px; }
+    .btn:hover { background: var(--bg-surface-alt); border-color: var(--border-mid); }
+    .btn:active { transform: translateY(0.5px); }
+    .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+    .btn-primary {
+      background: var(--accent-coral);
+      border-color: var(--accent-coral);
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background: #e35041;
+      border-color: #e35041;
+      box-shadow: 0 2px 8px rgba(242, 95, 80, 0.28);
+    }
 
     /* ---- Stats Bar ---- */
     .stats-bar {
-      background: var(--bg-surface); border-bottom: 1px solid var(--border-light);
-      padding: 8px 20px; display: flex; align-items: center; gap: 28px; font-size: 12px;
+      height: 44px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-light);
+      border-bottom: 1px solid var(--border-light);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-shrink: 0;
     }
-    .stat-item { display: flex; align-items: center; gap: 6px; color: var(--text-tertiary); }
-    .stat-value { font-weight: 600; color: var(--text-primary); }
-    .stat-item.conflict .stat-value { color: var(--accent-red); font-weight: 700; }
 
-    /* ---- Main Layout ---- */
-    .main-layout { flex: 1; display: flex; overflow: hidden; }
+    .stats-group {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
 
-    /* Left sidebar */
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 17px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+    }
+    .stat-value {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 19px;
+      color: var(--text-primary);
+    }
+    .stat-item.conflict .stat-value.has-conflict {
+      color: var(--accent-red);
+    }
+
+    .sim-pill {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      height: 24px;
+      padding: 0 10px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-amber-bg);
+      border: 1px solid #f7d89c;
+      color: #9a5b04;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .sim-pill.visible { display: inline-flex; }
+    .sim-pill button {
+      border: none;
+      background: transparent;
+      color: #9a5b04;
+      font-weight: 600;
+      text-decoration: underline;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11px;
+      margin-left: 4px;
+    }
+
+    /* ---- Main Workspace ---- */
+    .main-layout {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Left Sidebar */
     .left-sidebar {
-      width: 190px; background: var(--bg-surface); border-right: 1px solid var(--border-light);
-      display: flex; flex-direction: column; padding: 16px 0; flex-shrink: 0;
+      width: 176px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-light);
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 24px;
+      flex-shrink: 0;
+      transition: width 0.18s ease, padding 0.18s ease;
     }
-    .sidebar-section { padding: 0 14px; margin-bottom: 20px; }
-    .sidebar-title { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+
+    .left-sidebar.collapsed {
+      width: 52px;
+      padding: 16px 8px;
+      align-items: center;
+    }
+
+    .left-sidebar.collapsed .sidebar-section {
+      align-items: center;
+      width: 100%;
+    }
+
+    .left-sidebar.collapsed .sidebar-header-row {
+      justify-content: center;
+      width: 100%;
+    }
+
+    .left-sidebar.collapsed .sidebar-title,
+    .left-sidebar.collapsed .sidebar-item > span:not(.legend-icon),
+    .left-sidebar.collapsed .sidebar-help > span,
+    .left-sidebar.collapsed .filter-clear-btn {
+      display: none;
+    }
+
+    .left-sidebar.collapsed .sidebar-item,
+    .left-sidebar.collapsed .sidebar-help {
+      justify-content: center;
+      padding: 0;
+      width: 34px;
+    }
+
+    .sidebar-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sidebar-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .sidebar-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .sidebar-collapse-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-tertiary);
+      transition: background 0.12s, color 0.12s;
+      flex-shrink: 0;
+    }
+    .sidebar-collapse-btn:hover { background: var(--bg-surface-alt); color: var(--text-primary); }
+    .sidebar-collapse-btn svg { width: 15px; height: 15px; }
+
+    .sidebar-title {
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 15px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .filter-clear-btn {
+      display: none;
+      border: none;
+      background: transparent;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .filter-clear-btn.visible { display: inline; }
+
     .sidebar-item {
-      display: flex; align-items: center; gap: 8px;
-      padding: 7px 10px; border-radius: var(--radius-sm);
-      font-size: 12px; color: var(--text-secondary); cursor: pointer; transition: all 0.12s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 32px;
+      padding: 0 6px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 17px;
+      color: var(--text-primary);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s, color 0.12s;
     }
-    .sidebar-item:hover { background: var(--bg-hover); }
-    .legend-color { width: 10px; height: 10px; border-radius: 3px; }
+    .sidebar-item:hover { background: var(--bg-surface-alt); }
+    .sidebar-item.active {
+      background: var(--bg-surface-alt);
+      font-weight: 600;
+      box-shadow: inset 0 0 0 1px var(--border-light);
+    }
+
+    .legend-icon {
+      width: 17px;
+      height: 17px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .legend-icon svg { width: 16px; height: 16px; }
+
+    .status-dot-legend {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
     .sidebar-spacer { flex: 1; }
-    .sidebar-footer { padding: 0 14px; border-top: 1px solid var(--border-light); padding-top: 12px; }
-    .sidebar-footer .sidebar-item svg { width: 16px; height: 16px; color: var(--text-muted); }
+
+    .sidebar-help {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 32px;
+      padding: 0 6px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      width: 100%;
+      text-align: left;
+      transition: background 0.12s, color 0.12s;
+    }
+    .sidebar-help:hover { background: var(--bg-surface-alt); color: var(--text-primary); }
+    .sidebar-help svg { width: 17px; height: 17px; flex-shrink: 0; }
 
     /* ---- Canvas ---- */
     .canvas-area {
-      flex: 1; position: relative; overflow: hidden;
+      flex: 1;
+      position: relative;
+      overflow: hidden;
       background: var(--bg-canvas);
+      min-width: 0;
     }
-    /* Animated dot grid background */
+
     .canvas-bg {
-      position: absolute; inset: 0; z-index: 0;
-      background-image: radial-gradient(circle, #d4d4d4 1px, transparent 1px);
-      background-size: 24px 24px;
-      animation: gridDrift 20s linear infinite;
-    }
-    @keyframes gridDrift {
-      0% { background-position: 0 0; }
-      100% { background-position: 24px 24px; }
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image: radial-gradient(circle, #dde2eb 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
     }
 
-    /* Ambient floating particles */
-    .ambient-particles {
-      position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden;
+    .canvas-overlay-header {
+      position: absolute;
+      left: 24px;
+      top: 18px;
+      z-index: 5;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
-    .particle {
-      position: absolute; border-radius: 50%; opacity: 0;
-      animation: floatParticle linear infinite;
+    .canvas-overlay-title {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 22px;
+      color: var(--text-primary);
     }
-    @keyframes floatParticle {
-      0% { opacity: 0; transform: translateY(100vh) scale(0.5); }
-      10% { opacity: 0.6; }
-      90% { opacity: 0.6; }
-      100% { opacity: 0; transform: translateY(-20px) scale(1); }
+    .canvas-overlay-sub {
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 16px;
+      color: var(--text-tertiary);
     }
 
-    /* Zoom controls */
+    .canvas-empty {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      pointer-events: none;
+      color: var(--text-tertiary);
+      text-align: center;
+      padding: 24px;
+    }
+    .canvas-empty.visible { display: flex; }
+    .canvas-empty strong { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .canvas-empty span { font-size: 12px; color: var(--text-tertiary); max-width: 360px; }
+
     .canvas-controls {
-      position: absolute; bottom: 16px; left: 16px; z-index: 10;
-      display: flex; align-items: center; gap: 2px;
-      background: var(--bg-surface); border: 1px solid var(--border-light);
-      border-radius: var(--radius-md); padding: 3px; box-shadow: var(--shadow-sm);
+      position: absolute;
+      bottom: 16px;
+      left: 24px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 36px;
+      padding: 4px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
     }
     .canvas-controls button {
-      width: 30px; height: 28px; border: none; background: transparent;
-      border-radius: var(--radius-sm); cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      color: var(--text-secondary); font-size: 14px; transition: all 0.12s; font-family: inherit;
+      width: 36px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      transition: background 0.12s, color 0.12s;
     }
-    .canvas-controls button:hover { background: var(--bg-hover); }
-    .canvas-controls .sep { width: 1px; height: 18px; background: var(--border-light); }
+    .canvas-controls button:hover {
+      background: var(--bg-surface-alt);
+      color: var(--text-primary);
+    }
+    .canvas-controls button svg { width: 16px; height: 16px; }
 
-    #dag-svg { width: 100%; height: 100%; position: relative; z-index: 2; }
+    #graph-wrapper {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      z-index: 2;
+      overflow: hidden;
+    }
 
-    /* Animated flowing dashes on edges */
-    @keyframes flowDash { to { stroke-dashoffset: -40; } }
-    @keyframes flowDashConflict { to { stroke-dashoffset: -30; } }
+    #dag-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+      user-select: none;
+    }
+    #dag-svg.grabbing { cursor: grabbing; }
+
     @keyframes conflictPulse {
-      0%, 100% { stroke-opacity: 0.6; stroke-width: 2; }
-      50% { stroke-opacity: 1; stroke-width: 3.5; }
+      0%, 100% { stroke-opacity: 0.45; }
+      50% { stroke-opacity: 1; }
+    }
+    @keyframes activePulse {
+      0%, 100% { stroke-opacity: 0.35; }
+      50% { stroke-opacity: 0.85; }
+    }
+    @keyframes flowConflictDash {
+      to { stroke-dashoffset: -20; }
+    }
+    @keyframes flowSkipDash {
+      to { stroke-dashoffset: -18; }
     }
 
-    /* Particle glow on edges */
-    @keyframes particleFlow {
-      0% { offset-distance: 0%; opacity: 0; }
-      5% { opacity: 1; }
-      95% { opacity: 1; }
-      100% { offset-distance: 100%; opacity: 0; }
-    }
-
-    /* Node 3D hover effect */
-    @keyframes nodeFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-3px); }
-    }
-
-    /* Conflict glow pulse */
-    @keyframes conflictPulse {
-      0%, 100% { stroke-opacity: 0.4; stroke-width: 2; }
-      50% { stroke-opacity: 1; stroke-width: 3.5; }
-    }
-
-    /* Spinner for in-progress */
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ---- Right Drawer ---- */
+    /* ---- Right Inspector Drawer ---- */
     .right-drawer {
-      width: 330px; background: var(--bg-surface); border-left: 1px solid var(--border-light);
-      display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
-      box-shadow: -2px 0 8px rgba(0,0,0,0.04);
+      width: 354px;
+      background: var(--bg-surface);
+      border-left: 1px solid var(--border-light);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
     }
+    .right-drawer.collapsed {
+      display: none;
+    }
+
+    .right-drawer-rail {
+      width: 44px;
+      background: var(--bg-surface);
+      border-left: 1px solid var(--border-light);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 8px;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    .right-drawer-rail.visible {
+      display: flex;
+    }
+    .rail-label {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      user-select: none;
+    }
+
     .drawer-header {
-      padding: 14px 16px; border-bottom: 1px solid var(--border-light);
-      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 20px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      flex-shrink: 0;
     }
-    .drawer-header-left { display: flex; align-items: center; gap: 8px; }
-    .drawer-type-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .drawer-title { font-size: 14px; font-weight: 600; color: var(--text-primary); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .drawer-header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .drawer-type-pill {
+      height: 24px;
+      padding: 0 8px;
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 15px;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      letter-spacing: 0.2px;
+    }
+    .pill-requirement { background: var(--accent-blue-bg); color: var(--accent-blue); }
+    .pill-decision    { background: var(--accent-purple-bg); color: var(--accent-purple); }
+    .pill-task        { background: var(--accent-green-bg); color: var(--accent-green); }
+    .pill-artifact    { background: var(--bg-surface-alt); color: var(--text-tertiary); }
+
     .drawer-close {
-      width: 28px; height: 28px; border: none; background: transparent;
-      border-radius: var(--radius-sm); cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      color: var(--text-tertiary); transition: all 0.12s;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-tertiary);
+      transition: background 0.12s, color 0.12s;
     }
-    .drawer-close:hover { background: var(--bg-hover); }
+    .drawer-close:hover { background: var(--bg-surface-alt); color: var(--text-primary); }
+    .drawer-close svg { width: 16px; height: 16px; }
 
-    .drawer-body { flex: 1; overflow-y: auto; padding: 16px; }
+    .drawer-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 20px;
+      color: var(--text-primary);
+      word-break: break-word;
+    }
 
-    .detail-section { margin-bottom: 16px; }
-    .detail-section-title { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; justify-content: space-between; }
-    .detail-card { background: var(--bg-surface-alt); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 12px; }
-    .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 12px; }
-    .detail-row + .detail-row { border-top: 1px solid var(--border-light); }
-    .detail-label { color: var(--text-tertiary); }
-    .detail-value { font-weight: 500; color: var(--text-primary); }
-    .detail-value.mono { font-family: 'Consolas', 'SFMono-Regular', monospace; font-size: 11px; }
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
 
-    .status-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; display: inline-flex; align-items: center; gap: 4px; }
-    .status-pending  { background: #f5f5f5; color: #737373; border: 1px solid #e5e5e5; }
-    .status-progress { background: #fef7e6; color: #b45309; border: 1px solid #fcd68c; }
-    .status-complete { background: #edf7ef; color: #15803d; border: 1px solid #a7d8b0; }
-    .status-conflict { background: #fdf0f0; color: #d94f4f; border: 1px solid #f0a0a0; animation: badgePulse 1.5s infinite; }
-    @keyframes badgePulse { 0%,100%{box-shadow:0 0 0 0 rgba(217,79,79,0)} 50%{box-shadow:0 0 0 4px rgba(217,79,79,0.15)} }
+    .conflict-banner {
+      background: var(--accent-red-bg);
+      border: 1px solid #f3b8b8;
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      display: none;
+    }
+    .conflict-banner.visible { display: block; }
+    .conflict-banner-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-red);
+      margin-bottom: 4px;
+    }
+    .conflict-banner-text {
+      font-size: 11px;
+      line-height: 16px;
+      color: #a63a3a;
+      word-break: break-word;
+    }
 
-    .conflict-banner { background: #fdf0f0; border: 1px solid #f0a0a0; border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 16px; animation: bannerPulse 2s infinite; }
-    @keyframes bannerPulse { 0%,100%{border-color:#f0a0a0} 50%{border-color:#d94f4f} }
-    .conflict-banner-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #d94f4f; margin-bottom: 4px; }
-    .conflict-banner-text { font-size: 11px; color: #b45050; line-height: 1.5; }
+    .detail-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .detail-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .detail-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 17px;
+      color: var(--text-primary);
+    }
+
+    .detail-section-meta {
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 15px;
+      color: var(--text-tertiary);
+    }
+
+    .detail-card {
+      background: var(--bg-surface-alt);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .detail-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 20px;
+      font-size: 12px;
+      line-height: 17px;
+    }
+
+    .detail-label { color: var(--text-tertiary); font-weight: 400; }
+    .detail-value { color: var(--text-primary); font-weight: 500; text-align: right; word-break: break-word; }
+
+    .status-chip {
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 15px;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
+    .status-chip.pending  { color: var(--text-primary); }
+    .status-chip.progress { color: var(--accent-amber); }
+    .status-chip.complete { color: var(--accent-green); }
+    .status-chip.conflict { color: var(--accent-red); }
 
     .payload-pre {
-      background: var(--bg-canvas); border: 1px solid var(--border-light);
-      border-radius: var(--radius-sm); padding: 10px;
-      font-family: 'Consolas', 'SFMono-Regular', monospace;
-      font-size: 11px; color: var(--text-secondary); line-height: 1.6;
-      overflow-x: auto; max-height: 160px; white-space: pre-wrap;
+      background: var(--bg-surface-alt);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 16px;
+      color: var(--text-tertiary);
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 180px;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
-    .audit-event { background: var(--bg-surface-alt); border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 6px; }
-    .audit-event-header { display: flex; justify-content: space-between; margin-bottom: 3px; }
-    .audit-event-type { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
-    .audit-event-time { font-size: 10px; color: var(--text-muted); }
-    .audit-event-detail { font-size: 11px; color: var(--text-tertiary); display: flex; gap: 8px; }
-    .event-create  { background: #eef4fb; color: #4a90d9; }
-    .event-claim   { background: #fef7e6; color: #b45309; }
-    .event-submit  { background: #edf7ef; color: #15803d; }
-    .event-conflict{ background: #fdf0f0; color: #d94f4f; }
+    .audit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
 
-    /* ---- Bottom Event Log ---- */
-    .event-log-bar { height: 96px; background: var(--bg-surface); border-top: 1px solid var(--border-light); display: flex; flex-direction: column; }
+    .audit-event {
+      background: var(--bg-surface-alt);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .audit-event-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      height: 16px;
+    }
+
+    .audit-event-type {
+      font-size: 9px;
+      font-weight: 600;
+      line-height: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+    }
+    .ev-create   { color: var(--accent-blue); }
+    .ev-claim    { color: var(--accent-amber); }
+    .ev-submit   { color: var(--accent-green); }
+    .ev-conflict { color: var(--accent-red); }
+
+    .audit-event-time {
+      font-size: 10px;
+      font-weight: 400;
+      line-height: 15px;
+      color: var(--text-tertiary);
+    }
+
+    .audit-event-actor {
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 16px;
+      color: var(--text-primary);
+    }
+
+    .audit-event-key {
+      font-size: 10px;
+      font-weight: 400;
+      line-height: 15px;
+      color: var(--text-tertiary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .audit-empty {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 16px 0;
+      font-size: 11px;
+    }
+
+    /* ---- Bottom Live Event Log ---- */
+    .event-log-bar {
+      position: relative;
+      height: 100px;
+      min-height: 64px;
+      max-height: 58vh;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-light);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .event-log-resizer {
+      position: absolute;
+      top: -5px;
+      left: 0;
+      right: 0;
+      height: 10px;
+      cursor: ns-resize;
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .event-log-resizer::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 4px;
+      height: 2px;
+      background: transparent;
+      transition: background 0.15s ease;
+    }
+
+    .event-log-resizer-pill {
+      width: 44px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--border-mid);
+      opacity: 0;
+      transform: scaleX(0.75);
+      transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+      position: relative;
+      z-index: 1;
+    }
+
+    .event-log-resizer:hover::before,
+    .event-log-resizer.dragging::before {
+      background: rgba(63, 125, 216, 0.35);
+    }
+
+    .event-log-resizer:hover .event-log-resizer-pill,
+    .event-log-resizer.dragging .event-log-resizer-pill {
+      opacity: 1;
+      transform: scaleX(1);
+      background: var(--accent-blue);
+    }
+
     .event-log-header {
-      padding: 6px 16px; border-bottom: 1px solid var(--border-light);
-      display: flex; align-items: center; justify-content: space-between;
-      font-size: 11px; font-weight: 500; color: var(--text-secondary);
+      height: 36px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
     }
-    .dot-live { width: 6px; height: 6px; border-radius: 50%; background: #34a853; animation: wsBlink 2s infinite; margin-right: 6px; display: inline-block; }
-    .event-log-body {
-      flex: 1; overflow-y: auto; padding: 4px 16px;
-      font-family: 'Consolas', 'SFMono-Regular', monospace; font-size: 11px; color: var(--text-secondary);
-    }
-    .log-line { padding: 2px 0; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f0f0f0; }
-    .log-time { color: var(--text-muted); min-width: 72px; }
-    .log-badge { font-size: 10px; font-weight: 600; padding: 0 5px; border-radius: 3px; }
-    .log-info    { background: #eef4fb; color: #4a90d9; }
-    .log-claim   { background: #fef7e6; color: #b45309; }
-    .log-submit  { background: #edf7ef; color: #15803d; }
-    .log-conflict{ background: #fdf0f0; color: #d94f4f; }
 
-    @media (max-width: 1024px) {
+    .event-log-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dot-live {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      display: inline-block;
+    }
+
+    .event-log-title {
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 17px;
+      color: var(--text-primary);
+    }
+
+    .event-log-sub {
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 16px;
+      color: var(--text-tertiary);
+    }
+
+    .event-log-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 24px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      line-height: 16px;
+      color: var(--text-tertiary);
+    }
+
+    .log-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 22px;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+    }
+    .log-time { color: var(--text-tertiary); }
+    .log-badge {
+      display: inline-flex;
+      align-items: center;
+      height: 20px;
+      padding: 0 7px;
+      border-radius: var(--radius-sm);
+      font-size: 9px;
+      font-weight: 600;
+      line-height: 13px;
+      text-transform: uppercase;
+    }
+    .log-info     { background: var(--accent-blue-bg); color: var(--accent-blue); }
+    .log-claim    { background: var(--accent-amber-bg); color: var(--accent-amber); }
+    .log-submit   { background: var(--accent-green-bg); color: var(--accent-green); }
+    .log-conflict { background: var(--accent-red-bg); color: var(--accent-red); }
+    .log-type     { font-weight: 500; color: var(--text-primary); }
+
+    /* ---- Help Modal ---- */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(15, 23, 42, 0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal-card {
+      width: 100%;
+      max-width: 520px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      box-shadow: var(--shadow-modal);
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-header h2 { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .modal-body {
+      padding: 16px 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--text-secondary);
+    }
+    .modal-code {
+      background: var(--bg-surface-alt);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 17px;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 1120px) {
       .agent-badges { display: none; }
-      .left-sidebar { width: 54px; }
-      .left-sidebar .sidebar-title, .left-sidebar .sidebar-item span { display: none; }
+    }
+    @media (max-width: 860px) {
+      .left-sidebar { width: 58px; padding: 14px 8px; align-items: center; }
+      .left-sidebar .sidebar-title,
+      .left-sidebar .sidebar-item span,
+      .left-sidebar .sidebar-help span,
+      .left-sidebar .filter-clear-btn { display: none; }
+      .right-drawer { width: 290px; }
     }
   </style>
 </head>
@@ -346,29 +1132,46 @@
   <!-- HEADER -->
   <header class="app-header">
     <div class="header-left">
-      <div class="logo-mark">Ω</div>
-      <div class="brand-text">
-        <h1>OmniHarness <span class="tag">NexHack 2.0</span></h1>
-        <p>Multi-Agent Shared Knowledge DAG & Blast-Radius Hub</p>
+      <div class="brand-group">
+        <div class="logo-mark">Ω</div>
+        <div class="brand-text">
+          <div class="brand-title-row">
+            <h1>OmniHarness</h1>
+            <span class="brand-tag">NexHack 2.0</span>
+          </div>
+          <p class="brand-subtitle">Multi-Agent Shared Knowledge DAG &amp; Blast-Radius Hub</p>
+        </div>
       </div>
+
       <div class="agent-badges">
-        <div class="agent-badge"><span class="agent-dot claude"></span> Claude Code CLI</div>
-        <div class="agent-badge"><span class="agent-dot codex"></span> OpenAI Codex</div>
-        <div class="agent-badge"><span class="agent-dot agy"></span> Antigravity</div>
+        <div class="agent-badge" id="badge-claude"><span class="agent-dot claude"></span> Claude Code CLI</div>
+        <div class="agent-badge" id="badge-codex"><span class="agent-dot codex"></span> OpenAI Codex</div>
+        <div class="agent-badge" id="badge-agy"><span class="agent-dot agy"></span> Antigravity</div>
       </div>
     </div>
+
     <div class="header-right">
       <div class="ws-status" id="ws-indicator">
         <span class="ws-dot-live" id="ws-dot"></span>
-        <span id="ws-text">Connected</span>
-        <span style="color:var(--text-muted);font-size:10px;" id="ws-latency">&lt;25ms</span>
+        <div class="ws-labels">
+          <span class="ws-text" id="ws-text">Connected</span>
+          <span class="ws-latency" id="ws-latency">&lt;25ms</span>
+        </div>
       </div>
-      <button class="btn" id="btn-refresh">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+
+      <button class="btn" id="btn-refresh" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+          <path d="M21 3v6h-6"/>
+        </svg>
         Refresh
       </button>
-      <button class="btn btn-primary" id="btn-simulate">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+
+      <button class="btn btn-primary" id="btn-simulate" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="2"/>
+          <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/>
+        </svg>
         Simulate Blast
       </button>
     </div>
@@ -376,94 +1179,135 @@
 
   <!-- STATS BAR -->
   <div class="stats-bar">
-    <div class="stat-item"><span>Nodes</span> <span class="stat-value" id="stat-total-nodes">0</span></div>
-    <div class="stat-item"><span>Requirements</span> <span class="stat-value" id="stat-reqs">0</span></div>
-    <div class="stat-item"><span>Decisions</span> <span class="stat-value" id="stat-decs">0</span></div>
-    <div class="stat-item"><span>In-Flight</span> <span class="stat-value" id="stat-leases">0</span></div>
-    <div class="stat-item conflict"><span>Conflicts</span> <span class="stat-value" id="stat-conflicts">0</span></div>
+    <div class="stats-group">
+      <div class="stat-item"><span>Nodes</span> <span class="stat-value" id="stat-total-nodes">0</span></div>
+      <div class="stat-item"><span>Requirements</span> <span class="stat-value" id="stat-reqs">0</span></div>
+      <div class="stat-item"><span>Decisions</span> <span class="stat-value" id="stat-decs">0</span></div>
+      <div class="stat-item"><span>In-Flight</span> <span class="stat-value" id="stat-leases">0</span></div>
+      <div class="stat-item conflict"><span>Conflicts</span> <span class="stat-value" id="stat-conflicts">0</span></div>
+    </div>
+    <div class="sim-pill" id="sim-banner">
+      Simulation Preview active
+      <button id="btn-sim-restore" type="button">Restore live state</button>
+    </div>
   </div>
 
-  <!-- MAIN -->
+  <!-- MAIN WORKSPACE -->
   <div class="main-layout">
     <!-- Left Sidebar -->
-    <nav class="left-sidebar">
+    <nav class="left-sidebar" id="left-sidebar" aria-label="Graph legend and filters">
       <div class="sidebar-section">
-        <div class="sidebar-title">Node Types</div>
-        <div class="sidebar-item"><div class="legend-color" style="background:#4a90d9;"></div><span>Requirement</span></div>
-        <div class="sidebar-item"><div class="legend-color" style="background:#7c5cbf;"></div><span>Decision</span></div>
-        <div class="sidebar-item"><div class="legend-color" style="background:#34a853;"></div><span>Task</span></div>
-        <div class="sidebar-item"><div class="legend-color" style="background:#78716c;"></div><span>Artifact</span></div>
-      </div>
-      <div class="sidebar-section">
-        <div class="sidebar-title">Status</div>
-        <div class="sidebar-item"><div class="legend-color" style="background:#f5a623;border-radius:50%;"></div><span>In Progress</span></div>
-        <div class="sidebar-item"><div class="legend-color" style="background:#d94f4f;border-radius:50%;"></div><span>Conflict</span></div>
-        <div class="sidebar-item"><div class="legend-color" style="background:#34a853;border-radius:50%;"></div><span>Completed</span></div>
-      </div>
-      <div class="sidebar-spacer"></div>
-      <div class="sidebar-footer">
-        <div class="sidebar-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <span>Help</span>
+        <div class="sidebar-header-row">
+          <div class="sidebar-title">Node Types</div>
+          <div class="sidebar-header-actions">
+            <button class="filter-clear-btn" id="btn-clear-filter" type="button">Clear</button>
+            <button class="sidebar-collapse-btn" id="btn-toggle-left-sidebar" type="button" title="Collapse node types sidebar" aria-label="Collapse node types sidebar">
+              <svg id="icon-left-sidebar-toggle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="sidebar-item" data-filter-kind="type" data-filter-val="REQUIREMENT" title="Filter Requirement nodes">
+          <span class="legend-icon" style="color:var(--accent-blue);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+          </span>
+          <span>Requirement</span>
+        </div>
+        <div class="sidebar-item" data-filter-kind="type" data-filter-val="DECISION" title="Filter Decision nodes">
+          <span class="legend-icon" style="color:var(--accent-purple);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+          </span>
+          <span>Decision</span>
+        </div>
+        <div class="sidebar-item" data-filter-kind="type" data-filter-val="TASK" title="Filter Task nodes">
+          <span class="legend-icon" style="color:var(--accent-green);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <span>Task</span>
+        </div>
+        <div class="sidebar-item" data-filter-kind="type" data-filter-val="ARTIFACT" title="Filter Artifact nodes">
+          <span class="legend-icon" style="color:var(--text-tertiary);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m16.5 9.4-9-5.19"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
+          </span>
+          <span>Artifact</span>
         </div>
       </div>
-    </nav>
 
-    <!-- DAG Canvas -->
-    <main class="canvas-area">
-      <!-- Animated dot grid -->
-      <div class="canvas-bg"></div>
-      <!-- Ambient particles -->
-      <div class="ambient-particles" id="ambient-particles"></div>
-
-      <!-- Zoom controls -->
-      <div class="canvas-controls">
-        <button id="btn-zoom-in" title="Zoom in">
-          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"/></svg>
-        </button>
-        <button id="btn-zoom-out" title="Zoom out">
-          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM7 10h6"/></svg>
-        </button>
-        <div class="sep"></div>
-        <button id="btn-reset-zoom" style="font-size:11px;width:auto;padding:0 8px;">⟲</button>
+      <div class="sidebar-section">
+        <div class="sidebar-title">Status</div>
+        <div class="sidebar-item" data-filter-kind="status" data-filter-val="IN_PROGRESS" title="Filter In Progress nodes">
+          <span class="legend-icon"><span class="status-dot-legend" style="background:var(--accent-amber);"></span></span>
+          <span>In Progress</span>
+        </div>
+        <div class="sidebar-item" data-filter-kind="status" data-filter-val="STALE_CONFLICT" title="Filter Conflict nodes">
+          <span class="legend-icon"><span class="status-dot-legend" style="background:var(--accent-red);"></span></span>
+          <span>Conflict</span>
+        </div>
+        <div class="sidebar-item" data-filter-kind="status" data-filter-val="COMPLETED" title="Filter Completed nodes">
+          <span class="legend-icon"><span class="status-dot-legend" style="background:var(--accent-green);"></span></span>
+          <span>Completed</span>
+        </div>
       </div>
 
-      <div id="graph-wrapper" style="width:100%;height:100%;cursor:grab;position:relative;overflow:hidden;">
+      <div class="sidebar-spacer"></div>
+
+      <button class="sidebar-help" id="btn-help" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Help</span>
+      </button>
+    </nav>
+
+    <!-- Knowledge Graph Canvas -->
+    <main class="canvas-area">
+      <div class="canvas-bg"></div>
+
+      <div class="canvas-overlay-header">
+        <div class="canvas-overlay-title">Knowledge graph</div>
+        <div class="canvas-overlay-sub" id="canvas-summary">0 nodes · 0 dependencies</div>
+      </div>
+
+      <div class="canvas-empty" id="canvas-empty">
+        <strong>No DAG nodes yet</strong>
+        <span>Seed a plan via <code>POST /api/seed/tictactoe</code> or create tasks using an agent adapter.</span>
+      </div>
+
+      <div class="canvas-controls">
+        <button id="btn-zoom-in" type="button" title="Zoom in">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button id="btn-zoom-out" type="button" title="Zoom out">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button id="btn-reset-zoom" type="button" title="Fit graph to view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+      </div>
+
+      <div id="graph-wrapper">
         <svg id="dag-svg">
           <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#b0b0b0" />
+            <filter id="card-shadow" x="-10%" y="-10%" width="120%" height="130%">
+              <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#101828" flood-opacity="0.06"/>
+            </filter>
+            <filter id="card-shadow-hover" x="-15%" y="-15%" width="130%" height="140%">
+              <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#101828" flood-opacity="0.10"/>
+            </filter>
+            <filter id="card-shadow-conflict" x="-15%" y="-15%" width="130%" height="140%">
+              <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#dc4c4c" flood-opacity="0.20"/>
+            </filter>
+            <filter id="glow-particle" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <marker id="arrow-conflict" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc4c4c" />
             </marker>
-            <marker id="arrow-conflict" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#d94f4f" />
+            <marker id="arrow-skip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#9b82db" />
             </marker>
-            <filter id="node-shadow" x="-15%" y="-15%" width="140%" height="150%">
-              <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.08"/>
-            </filter>
-            <filter id="node-shadow-hover" x="-20%" y="-20%" width="150%" height="160%">
-              <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.12"/>
-            </filter>
-            <filter id="node-shadow-conflict" x="-20%" y="-20%" width="150%" height="160%">
-              <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#d94f4f" flood-opacity="0.25"/>
-            </filter>
-            <filter id="glow-green" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="3" result="blur"/>
-              <feFlood flood-color="#34a853" flood-opacity="0.5" result="color"/>
-              <feComposite in="color" in2="blur" operator="in"/>
-              <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-            <filter id="glow-red" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="3" result="blur"/>
-              <feFlood flood-color="#d94f4f" flood-opacity="0.6" result="color"/>
-              <feComposite in="color" in2="blur" operator="in"/>
-              <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-            <filter id="glow-amber" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="2.5" result="blur"/>
-              <feFlood flood-color="#f5a623" flood-opacity="0.5" result="color"/>
-              <feComposite in="color" in2="blur" operator="in"/>
-              <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
           </defs>
           <g id="viewport-g">
             <g id="edges-group"></g>
@@ -474,70 +1318,134 @@
       </div>
     </main>
 
-    <!-- Right Drawer -->
+    <!-- Right Task Inspector Drawer -->
     <aside class="right-drawer" id="drawer">
       <div class="drawer-header">
-        <div class="drawer-header-left">
-          <div class="drawer-type-pill event-create" id="drawer-type-pill">NODE</div>
-          <div class="drawer-title" id="drawer-title">Node Inspector</div>
+        <div class="drawer-header-top">
+          <span class="drawer-type-pill pill-task" id="drawer-type-pill">TASK</span>
+          <button class="drawer-close" id="btn-close-drawer" type="button" title="Collapse task sidebar" aria-label="Collapse task sidebar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></svg>
+          </button>
         </div>
-        <button class="drawer-close" id="btn-close-drawer">
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
+        <div class="drawer-title" id="drawer-title">Node Inspector</div>
       </div>
+
       <div class="drawer-body">
-        <div id="drawer-conflict-box" class="conflict-banner" style="display:none;">
+        <div id="drawer-conflict-box" class="conflict-banner">
           <div class="conflict-banner-title">
-            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             Blast Radius Conflict
           </div>
           <div class="conflict-banner-text" id="drawer-conflict-text"></div>
         </div>
+
         <div class="detail-section">
-          <div class="detail-section-title">Details</div>
+          <div class="detail-section-header">
+            <span class="detail-section-title">Details</span>
+          </div>
           <div class="detail-card">
-            <div class="detail-row"><span class="detail-label">Identifier</span><span class="detail-value mono" id="drawer-node-id">--</span></div>
-            <div class="detail-row"><span class="detail-label">Status</span><span id="drawer-node-status" class="status-badge status-pending">--</span></div>
-            <div class="detail-row"><span class="detail-label">Assigned Agent</span><span class="detail-value" id="drawer-node-assigned">--</span></div>
-            <div class="detail-row"><span class="detail-label">Version</span><span class="detail-value mono" id="drawer-node-version">v1</span></div>
+            <div class="detail-row"><span class="detail-label">Identifier</span><span class="detail-value" id="drawer-node-id">--</span></div>
+            <div class="detail-row"><span class="detail-label">Status</span><span class="status-chip pending" id="drawer-node-status">--</span></div>
+            <div class="detail-row"><span class="detail-label">Assigned Agent</span><span class="detail-value" id="drawer-node-assigned">None</span></div>
+            <div class="detail-row"><span class="detail-label">Version</span><span class="detail-value" id="drawer-node-version">v1</span></div>
           </div>
         </div>
+
         <div class="detail-section">
-          <div class="detail-section-title"><span>Payload / Spec</span><span style="font-size:9px;color:var(--text-muted);font-weight:400;">JSON</span></div>
+          <div class="detail-section-header">
+            <span class="detail-section-title">Payload / Spec</span>
+            <span class="detail-section-meta">JSON · Scroll</span>
+          </div>
           <pre class="payload-pre" id="drawer-payload">{}</pre>
         </div>
+
         <div class="detail-section">
-          <div class="detail-section-title"><span>Evidence Audit Trail</span><span id="audit-count" style="font-size:10px;background:var(--bg-canvas);padding:1px 7px;border-radius:8px;color:var(--text-muted);font-weight:400;">0 events</span></div>
-          <div id="drawer-audit-list"><div style="text-align:center;color:var(--text-muted);padding:16px 0;font-size:11px;font-style:italic;">No events recorded</div></div>
+          <div class="detail-section-header">
+            <span class="detail-section-title">Evidence Audit Trail</span>
+            <span class="detail-section-meta" id="audit-count">0 events</span>
+          </div>
+          <div class="audit-list" id="drawer-audit-list">
+            <div class="audit-empty">No events recorded</div>
+          </div>
         </div>
       </div>
     </aside>
+
+    <!-- Collapsed Task Inspector Rail -->
+    <aside class="right-drawer-rail" id="drawer-rail" aria-label="Collapsed task inspector">
+      <button class="sidebar-collapse-btn" id="btn-expand-drawer" type="button" title="Expand task sidebar" aria-label="Expand task sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m10 9-3 3 3 3"/></svg>
+      </button>
+      <span class="rail-label">Task Inspector</span>
+    </aside>
   </div>
 
-  <!-- BOTTOM LOG -->
-  <footer class="event-log-bar">
+  <!-- BOTTOM LIVE EVENT LOG -->
+  <footer class="event-log-bar" id="event-log-bar">
+    <div class="event-log-resizer" id="event-log-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize live event log" title="Drag up or down to resize Live Event Log (double-click to reset)">
+      <div class="event-log-resizer-pill"></div>
+    </div>
     <div class="event-log-header">
-      <div style="display:flex;align-items:center;"><span class="dot-live"></span>Live Event Log <span style="margin-left:8px;color:var(--text-muted);font-weight:400;">(SQLite WAL Broadcast)</span></div>
-      <span id="event-stream-status" style="color:var(--text-muted);">Listening on /ws/graph...</span>
+      <div class="event-log-title-group">
+        <span class="dot-live"></span>
+        <span class="event-log-title">Live Event Log</span>
+        <span class="event-log-sub">(SQLite WAL Broadcast)</span>
+      </div>
+      <span class="event-log-sub" id="event-stream-status">Listening on /ws/graph...</span>
     </div>
     <div class="event-log-body" id="event-stream">
-      <div class="log-line" style="border:none;color:var(--text-muted);font-style:italic;">Connected to WebSocket hub. Waiting for agent events...</div>
+      <div class="log-line" style="color:var(--text-tertiary);">Connected to WebSocket hub. Waiting for agent events...</div>
     </div>
   </footer>
 
+  <!-- HELP MODAL -->
+  <div class="modal-backdrop" id="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="help-modal-title">OmniHarness Workspace Guide</h2>
+        <button class="drawer-close" id="btn-close-help" type="button" title="Close help">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div>
+          <strong>Canvas Navigation</strong><br>
+          Drag background to pan · Scroll to zoom · Drag any node card to reposition · Click a node to inspect · Click any Type or Status in the left legend to filter.
+        </div>
+        <div>
+          <strong>Agent-Native Discovery</strong><br>
+          Point Claude Code, Codex, or Antigravity at <code>/llms.txt</code> (or <code>/agent</code>) for live ready tasks and exact REST endpoints:
+        </div>
+        <pre class="modal-code">python -m adapters.codex_adapter connect &lt;SERVER_URL&gt; --agent-id codex
+python -m adapters.codex_adapter start
+python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // ===================== STATE =====================
+    // ===================== CONSTANTS & STATE =====================
+    const CARD_W = 188;
+    const CARD_H = 88;
+    const COL_GAP = 42;
+    const ROW_GAP = 16;
+
     let graphData = { nodes: [], edges: [], stats: {} };
     let selectedNodeId = null;
     let hoveredNodeId = null;
+    let activeFilter = null; // { kind: 'type'|'status', value: string }
+    let isSimulating = false;
     let ws = null;
-    let pan = { x: 60, y: 50 };
+
+    let pan = { x: 24, y: 88 };
     let zoom = 1.0;
-    let isDragging = false;
+    let isDraggingCanvas = false;
     let dragStart = { x: 0, y: 0 };
     let draggingNodeId = null;
     let nodeDragOffset = { x: 0, y: 0 };
+    let didDragMove = false;
     let customPositions = {};
+    let hasInitialFit = false;
 
     const svg = document.getElementById('dag-svg');
     const viewportG = document.getElementById('viewport-g');
@@ -545,338 +1453,499 @@
     const edgesGroup = document.getElementById('edges-group');
     const particlesGroup = document.getElementById('particles-group');
     const eventStream = document.getElementById('event-stream');
-
-    // ===================== AMBIENT PARTICLES =====================
-    function createAmbientParticles() {
-      const container = document.getElementById('ambient-particles');
-      const colors = ['#4a90d9', '#34a853', '#f5a623', '#7c5cbf', '#d94f4f'];
-      for (let i = 0; i < 15; i++) {
-        const p = document.createElement('div');
-        p.className = 'particle';
-        const size = 3 + Math.random() * 4;
-        p.style.width = size + 'px';
-        p.style.height = size + 'px';
-        p.style.left = Math.random() * 100 + '%';
-        p.style.background = colors[Math.floor(Math.random() * colors.length)];
-        p.style.animationDuration = (8 + Math.random() * 12) + 's';
-        p.style.animationDelay = (Math.random() * 10) + 's';
-        container.appendChild(p);
-      }
-    }
+    const leftSidebarEl = document.getElementById('left-sidebar');
+    const drawerEl = document.getElementById('drawer');
+    const drawerRailEl = document.getElementById('drawer-rail');
 
     // ===================== FALLBACK DATA =====================
     const initialFallbackData = {
       nodes: [
-        { id:"REQ-01", title:"User Authentication Specification", type:"REQUIREMENT", status:"COMPLETED", assigned_to:"system", version:2, payload:{spec:"Ed25519 asymmetric auth tokens (v2 update)",algorithm:"Ed25519"}, created_at:Date.now()/1000-300, updated_at:Date.now()/1000-30 },
-        { id:"DEC-01", title:"JWT Token Architecture Decision", type:"DECISION", status:"COMPLETED", assigned_to:"claude-code", version:1, payload:{decision:"JWT Token Architecture with 15min expiry"}, created_at:Date.now()/1000-240, updated_at:Date.now()/1000-180 },
-        { id:"TSK-01", title:"Auth Token Schema & Types", type:"TASK", status:"COMPLETED", assigned_to:"claude-code", version:1, payload:{output:"Pydantic token validation schemas defined"}, created_at:Date.now()/1000-200, updated_at:Date.now()/1000-120 },
-        { id:"TSK-02", title:"Token Verifier Middleware", type:"TASK", status:"IN_PROGRESS", assigned_to:"codex-agent", version:1, payload:{lease:"Leased to OpenAI Codex (Zero-Copy context loaded)"}, created_at:Date.now()/1000-160, updated_at:Date.now()/1000-60 },
-        { id:"TSK-03", title:"FastAPI Token Verification Route", type:"TASK", status:"STALE_CONFLICT", assigned_to:"claude-code", version:1, payload:{output:"Route implemented with RS256",conflict:"Upstream requirement REQ-01 updated to Ed25519. Invalidation cascade triggered."}, created_at:Date.now()/1000-100, updated_at:Date.now()/1000-10 }
+        { id:"REQ-01", title:"Tic Tac Toe Core Game Spec", type:"REQUIREMENT", status:"PENDING", assigned_to:null, version:1, payload:{spec:"3x3 Responsive Tic Tac Toe"}, created_at:Date.now()/1000-300, updated_at:Date.now()/1000-300 },
+        { id:"DEC-01", title:"Tic Tac Toe Architecture", type:"DECISION", status:"PENDING", assigned_to:null, version:1, payload:{decision:"State machine + Minimax + Glassmorphism"}, created_at:Date.now()/1000-240, updated_at:Date.now()/1000-240 },
+        { id:"TSK-01", title:"Core Board State Engine", type:"TASK", status:"PENDING", assigned_to:null, version:1, payload:{deliverable:"Pure board reducer & 8-way win detector"}, created_at:Date.now()/1000-200, updated_at:Date.now()/1000-200 },
+        { id:"TSK-02", title:"Unbeatable Minimax AI", type:"TASK", status:"PENDING", assigned_to:null, version:1, payload:{deliverable:"Alpha-beta pruned Minimax solver"}, created_at:Date.now()/1000-180, updated_at:Date.now()/1000-180 },
+        { id:"TSK-03", title:"Cyberpunk Glassmorphic UI & Procedural Web Audio FX", type:"TASK", status:"PENDING", assigned_to:null, version:1, payload:{instructions:"Build responsive 3x3 interactive gameboard using Tailwind CSS glassmorphism, animated turn indicators, scoreboard, and procedural Web Audio API sound effects.", assigned_agent:"OpenAI Codex / Cursor (Laptop 2)"}, created_at:Date.now()/1000-160, updated_at:Date.now()/1000-160 },
+        { id:"TSK-04", title:"Dynamic Winning Strike & Confetti", type:"TASK", status:"PENDING", assigned_to:null, version:1, payload:{deliverable:"Animated SVG strike overlay"}, created_at:Date.now()/1000-140, updated_at:Date.now()/1000-140 },
+        { id:"TSK-05", title:"OmniHarness Multi-Laptop Sync", type:"TASK", status:"PENDING", assigned_to:null, version:1, payload:{deliverable:"WebSocket multiplayer relay"}, created_at:Date.now()/1000-120, updated_at:Date.now()/1000-120 },
+        { id:"ART-01", title:"Tic Tac Toe Technical Bundle", type:"ARTIFACT", status:"PENDING", assigned_to:null, version:1, payload:{bundle:"index.html"}, created_at:Date.now()/1000-100, updated_at:Date.now()/1000-100 }
       ],
       edges: [
-        { source:"DEC-01", target:"REQ-01", relation:"relies_on" },
-        { source:"TSK-01", target:"DEC-01", relation:"relies_on" },
-        { source:"TSK-02", target:"TSK-01", relation:"relies_on" },
-        { source:"TSK-03", target:"DEC-01", relation:"relies_on" }
+        { source:"REQ-01", target:"DEC-01", relation:"relies_on" },
+        { source:"REQ-01", target:"TSK-01", relation:"relies_on" },
+        { source:"REQ-01", target:"ART-01", relation:"relies_on" },
+        { source:"DEC-01", target:"TSK-01", relation:"relies_on" },
+        { source:"DEC-01", target:"TSK-02", relation:"relies_on" },
+        { source:"DEC-01", target:"TSK-03", relation:"relies_on" },
+        { source:"DEC-01", target:"ART-01", relation:"relies_on" },
+        { source:"TSK-01", target:"TSK-02", relation:"relies_on" },
+        { source:"TSK-03", target:"TSK-04", relation:"relies_on" },
+        { source:"TSK-01", target:"ART-01", relation:"relies_on" },
+        { source:"TSK-03", target:"ART-01", relation:"relies_on" },
+        { source:"TSK-04", target:"ART-01", relation:"relies_on" },
+        { source:"TSK-05", target:"ART-01", relation:"relies_on" }
       ],
-      stats: { total_nodes:5, requirements:1, decisions:1, tasks:3, in_progress:1, conflicts:1, completed:3 }
+      stats: {}
     };
 
-    // ===================== NODE STYLING =====================
-    function getNodeStyle(type, status) {
-      let accentColor = '#a3a3a3', iconBg = '#f5f5f5';
-      if (status === 'STALE_CONFLICT') { accentColor = '#d94f4f'; iconBg = '#fdf0f0'; }
-      else if (status === 'IN_PROGRESS') { accentColor = '#f5a623'; iconBg = '#fef7e6'; }
-      else {
-        switch (type) {
-          case 'REQUIREMENT': accentColor = '#4a90d9'; iconBg = '#eef4fb'; break;
-          case 'DECISION':    accentColor = '#7c5cbf'; iconBg = '#f3effa'; break;
-          case 'TASK':        accentColor = status === 'COMPLETED' ? '#34a853' : '#78716c'; iconBg = status === 'COMPLETED' ? '#edf7ef' : '#f5f5f4'; break;
-          default:            accentColor = '#78716c'; iconBg = '#f5f5f4';
-        }
+    // ===================== THEME & ICON HELPERS =====================
+    function getTypeTheme(type) {
+      switch (type) {
+        case 'REQUIREMENT': return { color: '#3f7dd8', selBg: '#f4f8fe', pillClass: 'pill-requirement' };
+        case 'DECISION':    return { color: '#7c5cbf', selBg: '#f7f4fc', pillClass: 'pill-decision' };
+        case 'TASK':        return { color: '#32866a', selBg: '#f5faf7', pillClass: 'pill-task' };
+        default:            return { color: '#657080', selBg: '#f6f7f9', pillClass: 'pill-artifact' };
       }
-      return { accentColor, iconBg };
     }
 
-    function getStatusLabel(s) { return s === 'STALE_CONFLICT' ? '⚠ Conflict' : s === 'IN_PROGRESS' ? '● Active' : s === 'COMPLETED' ? '✓ Done' : s; }
-    function getStatusColor(s) { return s === 'STALE_CONFLICT' ? '#d94f4f' : s === 'IN_PROGRESS' ? '#d97706' : s === 'COMPLETED' ? '#15803d' : '#737373'; }
+    function getStatusTheme(status) {
+      switch (status) {
+        case 'STALE_CONFLICT': return { label: 'CONFLICT', color: '#dc4c4c', borderColor: '#dc4c4c', selBg: '#fdf4f4', chipClass: 'conflict' };
+        case 'IN_PROGRESS':    return { label: 'ACTIVE',   color: '#d97706', borderColor: '#d97706', selBg: '#fffaf0', chipClass: 'progress' };
+        case 'COMPLETED':      return { label: 'COMPLETED',color: '#32866a', borderColor: '#32866a', selBg: '#f5faf7', chipClass: 'complete' };
+        default:               return { label: 'PENDING',  color: '#657080', borderColor: null,      selBg: null,      chipClass: 'pending' };
+      }
+    }
+
+    function createTypeIconSvg(type, strokeColor) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      const add = (tag, attrs) => {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        el.setAttribute('stroke', strokeColor);
+        el.setAttribute('stroke-width', '1.8');
+        el.setAttribute('stroke-linecap', 'round');
+        el.setAttribute('stroke-linejoin', 'round');
+        el.setAttribute('fill', 'none');
+        Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+        g.appendChild(el);
+      };
+      // Coordinate box 0..16 (scaled from 24x24 viewBox via scale(0.6667))
+      g.setAttribute('transform', 'scale(0.6667)');
+      if (type === 'REQUIREMENT') {
+        add('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' });
+        add('polyline', { points: '14 2 14 8 20 8' });
+        add('line', { x1: '16', y1: '13', x2: '8', y2: '13' });
+        add('line', { x1: '16', y1: '17', x2: '8', y2: '17' });
+      } else if (type === 'DECISION') {
+        add('line', { x1: '6', y1: '3', x2: '6', y2: '15' });
+        add('circle', { cx: '18', cy: '6', r: '3' });
+        add('circle', { cx: '6', cy: '18', r: '3' });
+        add('path', { d: 'M18 9a9 9 0 0 1-9 9' });
+      } else if (type === 'TASK') {
+        add('rect', { x: '3', y: '3', width: '18', height: '18', rx: '3' });
+        add('path', { d: 'm9 12 2 2 4-4' });
+      } else {
+        add('path', { d: 'm16.5 9.4-9-5.19' });
+        add('path', { d: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' });
+        add('polyline', { points: '3.29 7 12 12 20.71 7' });
+        add('line', { x1: '12', y1: '22', x2: '12', y2: '12' });
+      }
+      return g;
+    }
+
+    function matchesFilter(node) {
+      if (!activeFilter) return true;
+      if (activeFilter.kind === 'type') return node.type === activeFilter.value;
+      if (activeFilter.kind === 'status') return node.status === activeFilter.value;
+      return true;
+    }
 
     // ===================== LAYOUT =====================
+    function getTypeCol(type) {
+      const map = { 'REQUIREMENT': 0, 'DECISION': 1, 'TASK': 2, 'ARTIFACT': 3 };
+      return map[type] !== undefined ? map[type] : 2;
+    }
+
     function layoutGraph(nodes) {
-      const typeCols = { 'REQUIREMENT':0, 'DECISION':1, 'TASK':2, 'ARTIFACT':3 };
-      const columns = { 0:[], 1:[], 2:[], 3:[] };
-      nodes.forEach(n => { const c = typeCols[n.type] !== undefined ? typeCols[n.type] : 2; columns[c].push(n); });
+      const columns = { 0: [], 1: [], 2: [], 3: [] };
+      nodes.forEach(n => columns[getTypeCol(n.type)].push(n));
+
       const positions = {};
-      const colW = 290, rowH = 115, startX = 70, startY = 60;
+      const colStep = CARD_W + COL_GAP;
+      const rowStep = CARD_H + ROW_GAP;
+      const startX = 24;
+      const startY = 88;
+
       Object.keys(columns).forEach(ci => {
         columns[ci].forEach((n, ri) => {
-          positions[n.id] = { x: startX + parseInt(ci) * colW, y: startY + ri * rowH, width: 240, height: 76 };
+          positions[n.id] = {
+            x: startX + parseInt(ci, 10) * colStep,
+            y: startY + ri * rowStep,
+            col: parseInt(ci, 10),
+            row: ri,
+            width: CARD_W,
+            height: CARD_H
+          };
         });
       });
       return positions;
     }
 
     function getNodePositions(nodes) {
-      const defaultPositions = layoutGraph(nodes);
+      const defaults = layoutGraph(nodes);
       const positions = {};
       nodes.forEach(n => {
-        positions[n.id] = customPositions[n.id] ? { ...customPositions[n.id], width: 240, height: 76 } : defaultPositions[n.id];
+        const d = defaults[n.id];
+        positions[n.id] = customPositions[n.id]
+          ? { ...d, x: customPositions[n.id].x, y: customPositions[n.id].y }
+          : d;
       });
       return positions;
     }
 
+    // ===================== ORTHOGONAL STEPPED EDGE ROUTING =====================
+    function buildRoundedOrthogonalPath(pts, radius = 6) {
+      if (pts.length < 2) return '';
+      if (pts.length === 2) return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`;
+
+      let d = `M ${pts[0].x} ${pts[0].y}`;
+      for (let i = 1; i < pts.length - 1; i++) {
+        const prev = pts[i - 1];
+        const curr = pts[i];
+        const next = pts[i + 1];
+
+        const dx1 = curr.x - prev.x, dy1 = curr.y - prev.y;
+        const dx2 = next.x - curr.x, dy2 = next.y - curr.y;
+        const len1 = Math.hypot(dx1, dy1);
+        const len2 = Math.hypot(dx2, dy2);
+
+        if (len1 < 0.1 || len2 < 0.1) continue;
+        const r = Math.min(radius, len1 / 2, len2 / 2);
+
+        const p1x = curr.x - (dx1 / len1) * r;
+        const p1y = curr.y - (dy1 / len1) * r;
+        const p2x = curr.x + (dx2 / len2) * r;
+        const p2y = curr.y + (dy2 / len2) * r;
+
+        d += ` L ${p1x.toFixed(1)} ${p1y.toFixed(1)} Q ${curr.x} ${curr.y} ${p2x.toFixed(1)} ${p2y.toFixed(1)}`;
+      }
+      const last = pts[pts.length - 1];
+      d += ` L ${last.x} ${last.y}`;
+      return d;
+    }
+
+    function routeEdgePoints(edge, srcNode, tgtNode, srcPos, tgtPos, skipIdx, minTopY) {
+      const srcCol = getTypeCol(srcNode.type);
+      const tgtCol = getTypeCol(tgtNode.type);
+
+      // Same-column vertical or U-turn edge
+      if (srcCol === tgtCol && Math.abs(srcPos.x - tgtPos.x) < 40) {
+        const verticalDist = tgtPos.y - (srcPos.y + srcPos.height);
+        if (verticalDist >= 0 && verticalDist <= ROW_GAP + 6) {
+          // Immediately stacked neighbor: clean vertical center connector
+          const cx = srcPos.x + srcPos.width / 2;
+          return [
+            { x: cx, y: srcPos.y + srcPos.height },
+            { x: cx, y: tgtPos.y }
+          ];
+        }
+        // Non-adjacent in same column: route cleanly along right gutter
+        const gx = Math.max(srcPos.x + srcPos.width, tgtPos.x + tgtPos.width) + 14 + (skipIdx % 3) * 4;
+        return [
+          { x: srcPos.x + srcPos.width, y: srcPos.y + srcPos.height / 2 },
+          { x: gx, y: srcPos.y + srcPos.height / 2 },
+          { x: gx, y: tgtPos.y + tgtPos.height / 2 },
+          { x: tgtPos.x + tgtPos.width, y: tgtPos.y + tgtPos.height / 2 }
+        ];
+      }
+
+      // Skip-column forward dependency (e.g., REQ -> TASK, REQ -> ART, DEC -> ART)
+      if (tgtCol - srcCol > 1) {
+        const laneY = minTopY - 18 - (skipIdx % 5) * 8;
+        const startX = srcPos.x + srcPos.width / 2;
+        const startY = srcPos.y;
+        const targetTopClear = tgtPos.row === 0 || tgtPos.y <= minTopY + 10;
+
+        if (targetTopClear) {
+          const endX = tgtPos.x + tgtPos.width / 2;
+          return [
+            { x: startX, y: startY },
+            { x: startX, y: laneY },
+            { x: endX, y: laneY },
+            { x: endX, y: tgtPos.y }
+          ];
+        }
+        // Drop into left gutter of target column so we never cross cards above target
+        const gutterX = tgtPos.x - 16;
+        return [
+          { x: startX, y: startY },
+          { x: startX, y: laneY },
+          { x: gutterX, y: laneY },
+          { x: gutterX, y: tgtPos.y + tgtPos.height / 2 },
+          { x: tgtPos.x, y: tgtPos.y + tgtPos.height / 2 }
+        ];
+      }
+
+      // Standard forward or backward adjacent edge
+      if (tgtPos.x >= srcPos.x + srcPos.width) {
+        const x1 = srcPos.x + srcPos.width;
+        const y1 = srcPos.y + srcPos.height / 2;
+        const x2 = tgtPos.x;
+        const y2 = tgtPos.y + tgtPos.height / 2;
+        if (Math.abs(y1 - y2) < 2) {
+          return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+        }
+        const midX = x1 + (x2 - x1) / 2;
+        return [
+          { x: x1, y: y1 },
+          { x: midX, y: y1 },
+          { x: midX, y: y2 },
+          { x: x2, y: y2 }
+        ];
+      }
+
+      // Fallback (e.g. user dragged target left of source)
+      const x1 = srcPos.x + srcPos.width / 2;
+      const y1 = srcPos.y + srcPos.height;
+      const x2 = tgtPos.x + tgtPos.width / 2;
+      const y2 = tgtPos.y;
+      const midY = y1 + (y2 - y1) / 2;
+      return [
+        { x: x1, y: y1 },
+        { x: x1, y: midY },
+        { x: x2, y: midY },
+        { x: x2, y: y2 }
+      ];
+    }
+
     // ===================== RENDER DAG =====================
     function renderDAG() {
-      const positions = getNodePositions(graphData.nodes);
+      const nodes = graphData.nodes || [];
+      const edges = graphData.edges || [];
+      const positions = getNodePositions(nodes);
 
-      // --- Edges with animated flowing dashes ---
+      document.getElementById('canvas-summary').textContent = `${nodes.length} nodes · ${edges.length} dependencies`;
+      document.getElementById('canvas-empty').classList.toggle('visible', nodes.length === 0);
+
+      let minTopY = Infinity;
+      nodes.forEach(n => {
+        if (positions[n.id]) minTopY = Math.min(minTopY, positions[n.id].y);
+      });
+      if (!Number.isFinite(minTopY)) minTopY = 88;
+
       edgesGroup.innerHTML = '';
       particlesGroup.innerHTML = '';
+      let skipCount = 0;
 
-      graphData.edges.forEach((edge, idx) => {
+      // Render edges (skip-column dashed edges first, then solid, then conflicts on top)
+      const renderedEdges = edges.map(edge => {
+        const srcNode = nodes.find(n => n.id === edge.source);
+        const tgtNode = nodes.find(n => n.id === edge.target);
         const srcPos = positions[edge.source];
         const tgtPos = positions[edge.target];
-        if (!srcPos || !tgtPos) return;
+        if (!srcNode || !tgtNode || !srcPos || !tgtPos) return null;
 
-        const x1 = srcPos.x + srcPos.width / 2;
-        const y1 = srcPos.y + srcPos.height / 2;
-        const x2 = tgtPos.x + tgtPos.width / 2;
-        const y2 = tgtPos.y + tgtPos.height / 2;
+        const isSkip = getTypeCol(tgtNode.type) - getTypeCol(srcNode.type) > 1;
+        const isConflict = srcNode.status === 'STALE_CONFLICT' || tgtNode.status === 'STALE_CONFLICT';
+        const isRelatedToSelected = selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
+        const dimmed = activeFilter && !(matchesFilter(srcNode) && matchesFilter(tgtNode));
 
-        const isConflict = graphData.nodes.find(n => n.id === edge.source && n.status === 'STALE_CONFLICT') ||
-                           graphData.nodes.find(n => n.id === edge.target && n.status === 'STALE_CONFLICT');
+        const pts = routeEdgePoints(edge, srcNode, tgtNode, srcPos, tgtPos, isSkip ? skipCount++ : 0, minTopY);
+        const d = buildRoundedOrthogonalPath(pts, 6);
+        return { d, isSkip, isConflict, isRelatedToSelected, dimmed, priority: isConflict ? 2 : (isSkip ? 0 : 1) };
+      }).filter(Boolean).sort((a, b) => a.priority - b.priority);
 
-        const dx = Math.abs(x2 - x1) * 0.45;
-        const d = `M ${x1} ${y1} C ${x1 - dx} ${y1}, ${x2 + dx} ${y2}, ${x2} ${y2}`;
+      let solidEdgeIdx = 0;
+      renderedEdges.forEach((e, idx) => {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const edgeId = `dag-edge-${idx}`;
+        path.setAttribute('id', edgeId);
+        path.setAttribute('d', e.d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
 
-        // Base edge line
-        const basePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        basePath.setAttribute('d', d);
-        basePath.setAttribute('fill', 'none');
-        basePath.setAttribute('stroke', isConflict ? '#f0a0a0' : '#ddd');
-        basePath.setAttribute('stroke-width', '1.5');
-        edgesGroup.appendChild(basePath);
-
-        // Animated flowing overlay
-        const flowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        flowPath.setAttribute('d', d);
-        flowPath.setAttribute('fill', 'none');
-        if (isConflict) {
-          flowPath.setAttribute('stroke', '#d94f4f');
-          flowPath.setAttribute('stroke-width', '2.5');
-          flowPath.setAttribute('stroke-dasharray', '6 6');
-          flowPath.style.animation = `flowDashConflict 0.8s linear infinite, conflictPulse 1.5s ease-in-out infinite`;
-          flowPath.setAttribute('marker-end', 'url(#arrow-conflict)');
+        if (e.isConflict) {
+          path.setAttribute('stroke', '#dc4c4c');
+          path.setAttribute('stroke-width', '2');
+          path.setAttribute('stroke-dasharray', '6 4');
+          path.style.animation = 'flowConflictDash 0.76s linear infinite';
+          path.setAttribute('marker-end', 'url(#arrow-conflict)');
+        } else if (e.isSkip) {
+          path.setAttribute('stroke', e.isRelatedToSelected ? '#7c5cbf' : '#b49ee8');
+          path.setAttribute('stroke-width', e.isRelatedToSelected ? '1.75' : '1.4');
+          path.setAttribute('stroke-dasharray', '5 4');
+          path.style.animation = 'flowSkipDash 1.1s linear infinite';
+          path.setAttribute('marker-end', 'url(#arrow-skip)');
         } else {
-          flowPath.setAttribute('stroke', '#4a90d9');
-          flowPath.setAttribute('stroke-width', '2');
-          flowPath.setAttribute('stroke-dasharray', '8 12');
-          flowPath.setAttribute('stroke-opacity', '0.6');
-          flowPath.style.animation = `flowDash ${1.5 + idx * 0.3}s linear infinite`;
-          flowPath.setAttribute('marker-end', 'url(#arrow)');
+          path.setAttribute('stroke', e.isRelatedToSelected ? '#8896ab' : '#cbd5e1');
+          path.setAttribute('stroke-width', e.isRelatedToSelected ? '1.75' : '1.4');
+
+          // Sparse glowing particle traveling from initial connecting point to final connecting point
+          const spawnParticle = !e.dimmed && (solidEdgeIdx % 3 === 0);
+          if (spawnParticle) {
+            const pColor = e.isRelatedToSelected ? '#32866a' : '#3f7dd8';
+            const particleG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+            const halo = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            halo.setAttribute('r', '4.2');
+            halo.setAttribute('fill', pColor);
+            halo.setAttribute('opacity', '0.26');
+
+            const core = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            core.setAttribute('r', '2.1');
+            core.setAttribute('fill', pColor);
+            core.setAttribute('filter', 'url(#glow-particle)');
+
+            const centerDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            centerDot.setAttribute('r', '0.85');
+            centerDot.setAttribute('fill', '#ffffff');
+            centerDot.setAttribute('opacity', '0.9');
+
+            const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+            anim.setAttribute('dur', '4.7s');
+            anim.setAttribute('repeatCount', 'indefinite');
+            anim.setAttribute('begin', `${-(solidEdgeIdx * 0.85).toFixed(2)}s`);
+
+            const mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
+            mpath.setAttribute('href', `#${edgeId}`);
+            mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'href', `#${edgeId}`);
+
+            anim.appendChild(mpath);
+            particleG.appendChild(halo);
+            particleG.appendChild(core);
+            particleG.appendChild(centerDot);
+            particleG.appendChild(anim);
+            particlesGroup.appendChild(particleG);
+          }
+          solidEdgeIdx++;
         }
-        edgesGroup.appendChild(flowPath);
 
-        // Animated particle traveling along edge
-        const particleId = `edge-path-${idx}`;
-        const motionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        motionPath.id = particleId;
-        motionPath.setAttribute('d', d);
-        motionPath.setAttribute('fill', 'none');
-        motionPath.setAttribute('stroke', 'none');
-        particlesGroup.appendChild(motionPath);
-
-        // Create 2 traveling particles per edge
-        for (let p = 0; p < 2; p++) {
-          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          circle.setAttribute('r', isConflict ? '3.5' : '2.5');
-          circle.setAttribute('fill', isConflict ? '#d94f4f' : '#4a90d9');
-          circle.setAttribute('filter', isConflict ? 'url(#glow-red)' : 'url(#glow-green)');
-
-          const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
-          anim.setAttribute('dur', isConflict ? '1.5s' : (2.5 + idx * 0.5) + 's');
-          anim.setAttribute('repeatCount', 'indefinite');
-          anim.setAttribute('begin', (p * (isConflict ? 0.75 : 1.2)) + 's');
-
-          const mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
-          mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#' + particleId);
-          anim.appendChild(mpath);
-          circle.appendChild(anim);
-          particlesGroup.appendChild(circle);
-        }
+        if (e.dimmed) path.setAttribute('opacity', '0.22');
+        edgesGroup.appendChild(path);
       });
 
-      // --- Nodes ---
+      // Render nodes
       nodesGroup.innerHTML = '';
-      graphData.nodes.forEach(node => {
+      nodes.forEach(node => {
         const pos = positions[node.id];
         if (!pos) return;
-        const style = getNodeStyle(node.type, node.status);
+
+        const typeTheme = getTypeTheme(node.type);
+        const statusTheme = getStatusTheme(node.status);
         const isSelected = selectedNodeId === node.id;
+        const isHovered = hoveredNodeId === node.id;
         const isConflict = node.status === 'STALE_CONFLICT';
         const isActive = node.status === 'IN_PROGRESS';
-        const isHovered = hoveredNodeId === node.id;
+        const dimmed = activeFilter && !matchesFilter(node);
 
         const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
         g.setAttribute('cursor', 'grab');
+        if (dimmed) g.setAttribute('opacity', '0.28');
 
-        // Drag node support
+        const titleTip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        titleTip.textContent = `${node.id}: ${node.title}`;
+        g.appendChild(titleTip);
+
+        // Subtle pulse ring ONLY on Conflict or In-Progress nodes
+        if (isConflict || isActive) {
+          const ring = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          ring.setAttribute('x', '-4');
+          ring.setAttribute('y', '-4');
+          ring.setAttribute('width', pos.width + 8);
+          ring.setAttribute('height', pos.height + 8);
+          ring.setAttribute('rx', '11');
+          ring.setAttribute('fill', 'none');
+          ring.setAttribute('stroke', isConflict ? '#dc4c4c' : '#d97706');
+          ring.setAttribute('stroke-width', isConflict ? '2' : '1.5');
+          ring.style.animation = isConflict ? 'conflictPulse 1.6s ease-in-out infinite' : 'activePulse 2.2s ease-in-out infinite';
+          g.appendChild(ring);
+        }
+
+        const cardFill = isSelected
+          ? (statusTheme.selBg || typeTheme.selBg)
+          : '#ffffff';
+        const cardStroke = isSelected
+          ? (statusTheme.borderColor || typeTheme.color)
+          : (isConflict ? '#e69b9b' : (isHovered ? '#b8c2d0' : '#e5e8ed'));
+        const strokeWidth = isSelected ? '1.5' : '1';
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('width', pos.width);
+        rect.setAttribute('height', pos.height);
+        rect.setAttribute('rx', '8');
+        rect.setAttribute('fill', cardFill);
+        rect.setAttribute('stroke', cardStroke);
+        rect.setAttribute('stroke-width', strokeWidth);
+        rect.setAttribute('filter', isConflict ? 'url(#card-shadow-conflict)' : (isHovered ? 'url(#card-shadow-hover)' : 'url(#card-shadow)'));
+        g.appendChild(rect);
+
+        // Row 1: Type Icon (left) + Status label (right)
+        const iconWrap = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        iconWrap.setAttribute('transform', 'translate(12, 12)');
+        iconWrap.appendChild(createTypeIconSvg(node.type, isConflict ? '#dc4c4c' : typeTheme.color));
+        g.appendChild(iconWrap);
+
+        const statusTxt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        statusTxt.setAttribute('x', pos.width - 12);
+        statusTxt.setAttribute('y', '23');
+        statusTxt.setAttribute('text-anchor', 'end');
+        statusTxt.setAttribute('fill', statusTheme.color);
+        statusTxt.setAttribute('font-size', '9.5');
+        statusTxt.setAttribute('font-weight', '600');
+        statusTxt.setAttribute('font-family', "'Inter', sans-serif");
+        statusTxt.setAttribute('letter-spacing', '0.2px');
+        statusTxt.textContent = statusTheme.label;
+        g.appendChild(statusTxt);
+
+        // Row 2: Bold Node Title
+        const titleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        titleText.setAttribute('x', '12');
+        titleText.setAttribute('y', '47');
+        titleText.setAttribute('fill', '#202734');
+        titleText.setAttribute('font-size', '12');
+        titleText.setAttribute('font-weight', '600');
+        titleText.setAttribute('font-family', "'Inter', sans-serif");
+        titleText.textContent = node.title.length > 22 ? node.title.slice(0, 21) + '…' : node.title;
+        g.appendChild(titleText);
+
+        // Row 3: ID · @agent · vN
+        const agentStr = node.assigned_to ? `@${node.assigned_to}` : '@unassigned';
+        const metaFull = `${node.id} · ${agentStr} · v${node.version}`;
+        const metaText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        metaText.setAttribute('x', '12');
+        metaText.setAttribute('y', '69');
+        metaText.setAttribute('fill', '#657080');
+        metaText.setAttribute('font-size', '10.5');
+        metaText.setAttribute('font-weight', '400');
+        metaText.setAttribute('font-family', "'Inter', sans-serif");
+        metaText.textContent = metaFull.length > 27 ? metaFull.slice(0, 26) + '…' : metaFull;
+        g.appendChild(metaText);
+
+        // Interactions
         g.addEventListener('mousedown', (e) => {
           e.stopPropagation();
+          didDragMove = false;
           draggingNodeId = node.id;
           nodeDragOffset = {
             x: (e.clientX - pan.x) / zoom - pos.x,
             y: (e.clientY - pan.y) / zoom - pos.y
           };
-          selectNode(node.id);
         });
 
-        g.onclick = (e) => {
+        g.addEventListener('click', (e) => {
           e.stopPropagation();
-          selectNode(node.id);
-        };
+          if (!didDragMove) selectNode(node.id);
+        });
 
         g.addEventListener('mouseenter', () => {
           if (!draggingNodeId) {
             hoveredNodeId = node.id;
-            rect.setAttribute('stroke', isSelected ? style.accentColor : '#b0b0b0');
-            rect.setAttribute('stroke-width', isSelected ? '2.5' : '1.5');
-            rect.setAttribute('filter', isConflict ? 'url(#node-shadow-conflict)' : 'url(#node-shadow-hover)');
+            if (!isSelected) {
+              rect.setAttribute('stroke', isConflict ? '#dc4c4c' : '#b8c2d0');
+              rect.setAttribute('filter', isConflict ? 'url(#card-shadow-conflict)' : 'url(#card-shadow-hover)');
+            }
           }
         });
+
         g.addEventListener('mouseleave', () => {
           if (hoveredNodeId === node.id) {
             hoveredNodeId = null;
-            rect.setAttribute('stroke', isSelected ? style.accentColor : '#e0e0e0');
-            rect.setAttribute('stroke-width', isSelected ? '2.5' : '1');
-            rect.setAttribute('filter', isConflict ? 'url(#node-shadow-conflict)' : 'url(#node-shadow)');
+            if (!isSelected) {
+              rect.setAttribute('stroke', isConflict ? '#e69b9b' : '#e5e8ed');
+              rect.setAttribute('filter', isConflict ? 'url(#card-shadow-conflict)' : 'url(#card-shadow)');
+            }
           }
-        });
-
-        // Conflict outer glow ring (NO CSS transform to prevent coordinate displacement)
-        if (isConflict) {
-          const glowRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-          glowRect.setAttribute('x', '-5'); glowRect.setAttribute('y', '-5');
-          glowRect.setAttribute('width', pos.width + 10); glowRect.setAttribute('height', pos.height + 10);
-          glowRect.setAttribute('rx', '14'); glowRect.setAttribute('fill', 'none');
-          glowRect.setAttribute('stroke', '#d94f4f'); glowRect.setAttribute('stroke-width', '2.5');
-          glowRect.setAttribute('opacity', '0.6');
-          glowRect.style.animation = 'conflictPulse 1.5s ease-in-out infinite';
-          g.appendChild(glowRect);
-        }
-
-        // Active outer glow
-        if (isActive) {
-          const glowRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-          glowRect.setAttribute('x', '-3'); glowRect.setAttribute('y', '-3');
-          glowRect.setAttribute('width', pos.width + 6); glowRect.setAttribute('height', pos.height + 6);
-          glowRect.setAttribute('rx', '11'); glowRect.setAttribute('fill', 'none');
-          glowRect.setAttribute('stroke', '#f5a623'); glowRect.setAttribute('stroke-width', '1.5');
-          glowRect.setAttribute('opacity', '0.4');
-          glowRect.style.animation = 'conflictPulse 2s ease-in-out infinite';
-          g.appendChild(glowRect);
-        }
-
-        // Card rect with 3D shadow
-        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        rect.setAttribute('width', pos.width); rect.setAttribute('height', pos.height);
-        rect.setAttribute('rx', '10'); rect.setAttribute('fill', '#ffffff');
-        rect.setAttribute('stroke', isSelected ? style.accentColor : (isHovered ? '#c0c0c0' : '#e0e0e0'));
-        rect.setAttribute('stroke-width', isSelected ? '2.5' : (isHovered ? '1.5' : '1'));
-        rect.setAttribute('filter', isConflict ? 'url(#node-shadow-conflict)' : (isHovered ? 'url(#node-shadow-hover)' : 'url(#node-shadow)'));
-        g.appendChild(rect);
-
-        // Left accent bar
-        const accent = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        accent.setAttribute('x', '0'); accent.setAttribute('y', '1');
-        accent.setAttribute('width', '4'); accent.setAttribute('height', pos.height - 2);
-        accent.setAttribute('rx', '2'); accent.setAttribute('fill', style.accentColor);
-        g.appendChild(accent);
-
-        // Icon circle
-        const iconCx = 24, iconCy = pos.height / 2, iconR = 17;
-        const iconCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        iconCircle.setAttribute('cx', iconCx); iconCircle.setAttribute('cy', iconCy);
-        iconCircle.setAttribute('r', iconR); iconCircle.setAttribute('fill', style.iconBg);
-        iconCircle.setAttribute('stroke', '#e5e5e5'); iconCircle.setAttribute('stroke-width', '1');
-        g.appendChild(iconCircle);
-
-        // Icon SVG
-        const iconG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        iconG.setAttribute('transform', `translate(${iconCx - 7}, ${iconCy - 7})`);
-        const iconPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        iconPath.setAttribute('stroke', style.accentColor);
-        iconPath.setAttribute('stroke-width', '1.5'); iconPath.setAttribute('fill', 'none');
-        iconPath.setAttribute('stroke-linecap', 'round'); iconPath.setAttribute('stroke-linejoin', 'round');
-
-        switch (node.type) {
-          case 'REQUIREMENT': iconPath.setAttribute('d', 'M2 3h10v11H2zM5 6h4M5 8.5h4'); break;
-          case 'DECISION':    iconPath.setAttribute('d', 'M7 1L13 7L7 13L1 7Z'); break;
-          case 'TASK':
-            if (node.status === 'COMPLETED') iconPath.setAttribute('d', 'M2.5 7L5.5 10L11.5 4');
-            else iconPath.setAttribute('d', 'M1 7a6 6 0 1012 0A6 6 0 001 7zM5 5v4l3 1');
-            break;
-          default: iconPath.setAttribute('d', 'M2 4h10l-2 4 2 4H2l2-4Z');
-        }
-        iconG.appendChild(iconPath);
-        g.appendChild(iconG);
-
-        // Spinner ring for IN_PROGRESS
-        if (isActive) {
-          const spinner = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          spinner.setAttribute('cx', iconCx); spinner.setAttribute('cy', iconCy);
-          spinner.setAttribute('r', iconR + 3); spinner.setAttribute('fill', 'none');
-          spinner.setAttribute('stroke', '#f5a623'); spinner.setAttribute('stroke-width', '1.5');
-          spinner.setAttribute('stroke-dasharray', '12 20');
-          spinner.setAttribute('stroke-linecap', 'round');
-          spinner.style.transformOrigin = `${iconCx}px ${iconCy}px`;
-          spinner.style.animation = 'spin 2s linear infinite';
-          g.appendChild(spinner);
-        }
-
-        // Completed checkmark glow
-        if (node.status === 'COMPLETED') {
-          const glowDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          glowDot.setAttribute('cx', iconCx); glowDot.setAttribute('cy', iconCy);
-          glowDot.setAttribute('r', iconR); glowDot.setAttribute('fill', 'none');
-          glowDot.setAttribute('stroke', '#34a853'); glowDot.setAttribute('stroke-width', '1');
-          glowDot.setAttribute('opacity', '0.3');
-          g.appendChild(glowDot);
-        }
-
-        // Title
-        const titleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        titleText.setAttribute('x', '48'); titleText.setAttribute('y', '30');
-        titleText.setAttribute('fill', '#262626'); titleText.setAttribute('font-size', '12px');
-        titleText.setAttribute('font-weight', '500'); titleText.setAttribute('font-family', "'Inter',sans-serif");
-        titleText.textContent = node.title.length > 20 ? node.title.slice(0, 18) + '…' : node.title;
-        g.appendChild(titleText);
-
-        // Subtitle
-        const subText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        subText.setAttribute('x', '48'); subText.setAttribute('y', '46');
-        subText.setAttribute('fill', '#737373'); subText.setAttribute('font-size', '10px');
-        subText.setAttribute('font-family', "'Inter',sans-serif");
-        subText.textContent = `${node.id}  ·  @${node.assigned_to || 'unassigned'}  ·  v${node.version}`;
-        g.appendChild(subText);
-
-        // Status
-        const statusLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        statusLabel.setAttribute('x', pos.width - 10); statusLabel.setAttribute('y', '30');
-        statusLabel.setAttribute('text-anchor', 'end');
-        statusLabel.setAttribute('fill', getStatusColor(node.status));
-        statusLabel.setAttribute('font-size', '10px'); statusLabel.setAttribute('font-weight', '600');
-        statusLabel.setAttribute('font-family', "'Inter',sans-serif");
-        statusLabel.textContent = getStatusLabel(node.status);
-        g.appendChild(statusLabel);
-
-        // Connection dots
-        [{ cx: 0, cy: pos.height/2 }, { cx: pos.width, cy: pos.height/2 }].forEach(({ cx, cy }) => {
-          const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', '4');
-          dot.setAttribute('fill', '#fff'); dot.setAttribute('stroke', '#d4d4d4'); dot.setAttribute('stroke-width', '1.5');
-          g.appendChild(dot);
         });
 
         nodesGroup.appendChild(g);
@@ -885,148 +1954,344 @@
       updateStats();
     }
 
-    // ===================== STATS =====================
+    // ===================== STATS & AGENT ACTIVITY =====================
     function updateStats() {
-      document.getElementById('stat-total-nodes').textContent = graphData.nodes.length;
-      document.getElementById('stat-reqs').textContent = graphData.nodes.filter(n => n.type === 'REQUIREMENT').length;
-      document.getElementById('stat-decs').textContent = graphData.nodes.filter(n => n.type === 'DECISION').length;
-      document.getElementById('stat-leases').textContent = graphData.nodes.filter(n => n.status === 'IN_PROGRESS').length;
-      document.getElementById('stat-conflicts').textContent = graphData.nodes.filter(n => n.status === 'STALE_CONFLICT').length;
+      const nodes = graphData.nodes || [];
+      const conflictCount = nodes.filter(n => n.status === 'STALE_CONFLICT').length;
+
+      document.getElementById('stat-total-nodes').textContent = nodes.length;
+      document.getElementById('stat-reqs').textContent = nodes.filter(n => n.type === 'REQUIREMENT').length;
+      document.getElementById('stat-decs').textContent = nodes.filter(n => n.type === 'DECISION').length;
+      document.getElementById('stat-leases').textContent = nodes.filter(n => n.status === 'IN_PROGRESS').length;
+
+      const conflictEl = document.getElementById('stat-conflicts');
+      conflictEl.textContent = conflictCount;
+      conflictEl.classList.toggle('has-conflict', conflictCount > 0);
+
+      // Highlight header agent badges when matching agents hold active/completed nodes
+      const assignees = nodes.map(n => (n.assigned_to || '').toLowerCase()).join(' ');
+      document.getElementById('badge-claude').classList.toggle('active', assignees.includes('claude'));
+      document.getElementById('badge-codex').classList.toggle('active', assignees.includes('codex'));
+      document.getElementById('badge-agy').classList.toggle('active', assignees.includes('agy') || assignees.includes('antigravity'));
     }
 
-    // ===================== DRAWER =====================
+    // ===================== INSPECTOR DRAWER =====================
+    function setDrawerCollapsed(collapsed) {
+      drawerEl.classList.toggle('collapsed', collapsed);
+      drawerRailEl.classList.toggle('visible', collapsed);
+      if (graphData.nodes.length && !Object.keys(customPositions).length) {
+        requestAnimationFrame(() => fitGraph());
+      }
+    }
+
     async function selectNode(nodeId) {
       selectedNodeId = nodeId;
-      const node = graphData.nodes.find(n => n.id === nodeId);
+      const node = (graphData.nodes || []).find(n => n.id === nodeId);
       if (!node) return;
+
+      setDrawerCollapsed(false);
       renderDAG();
 
-      document.getElementById('drawer-node-id').textContent = node.id;
-      document.getElementById('drawer-title').textContent = node.title;
+      const typeTheme = getTypeTheme(node.type);
+      const statusTheme = getStatusTheme(node.status);
 
       const pill = document.getElementById('drawer-type-pill');
       pill.textContent = node.type;
-      pill.className = 'drawer-type-pill ' + (node.type === 'REQUIREMENT' ? 'event-create' : node.type === 'TASK' ? 'event-submit' : node.type === 'DECISION' ? 'event-claim' : '');
+      pill.className = `drawer-type-pill ${typeTheme.pillClass}`;
 
+      document.getElementById('drawer-title').textContent = node.title;
+      document.getElementById('drawer-node-id').textContent = node.id;
       document.getElementById('drawer-node-assigned').textContent = node.assigned_to ? `@${node.assigned_to}` : 'None';
       document.getElementById('drawer-node-version').textContent = `v${node.version}`;
 
       const statusEl = document.getElementById('drawer-node-status');
       statusEl.textContent = node.status;
-      statusEl.className = 'status-badge ' + (node.status === 'STALE_CONFLICT' ? 'status-conflict' : node.status === 'IN_PROGRESS' ? 'status-progress' : node.status === 'COMPLETED' ? 'status-complete' : 'status-pending');
+      statusEl.className = `status-chip ${statusTheme.chipClass}`;
 
       const cb = document.getElementById('drawer-conflict-box');
       if (node.status === 'STALE_CONFLICT') {
-        cb.style.display = 'block';
-        document.getElementById('drawer-conflict-text').textContent = node.payload?.conflict || "Blast-radius invalidation detected.";
-      } else { cb.style.display = 'none'; }
+        cb.classList.add('visible');
+        document.getElementById('drawer-conflict-text').textContent =
+          (node.payload && node.payload.conflict) || 'Upstream dependency changed. Invalidation cascade triggered.';
+      } else {
+        cb.classList.remove('visible');
+      }
 
-      document.getElementById('drawer-payload').textContent = JSON.stringify(node.payload, null, 2);
+      document.getElementById('drawer-payload').textContent = JSON.stringify(node.payload || {}, null, 2);
+
+      if (isSimulating) {
+        renderFallbackAuditTrail(node);
+        return;
+      }
 
       try {
-        const res = await fetch(`/api/nodes/${nodeId}/events`);
+        const res = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/events`);
         if (res.ok) renderAuditTrail(await res.json());
         else renderFallbackAuditTrail(node);
-      } catch { renderFallbackAuditTrail(node); }
+      } catch {
+        renderFallbackAuditTrail(node);
+      }
     }
 
     function renderAuditTrail(events) {
-      const c = document.getElementById('drawer-audit-list');
+      const container = document.getElementById('drawer-audit-list');
       document.getElementById('audit-count').textContent = `${events.length} events`;
-      c.innerHTML = '';
-      if (!events.length) { c.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px 0;font-size:11px;font-style:italic;">No events recorded</div>'; return; }
+      container.innerHTML = '';
+
+      if (!events.length) {
+        const empty = document.createElement('div');
+        empty.className = 'audit-empty';
+        empty.textContent = 'No events recorded';
+        container.appendChild(empty);
+        return;
+      }
+
       events.forEach(ev => {
-        const d = document.createElement('div');
-        d.className = 'audit-event';
-        let tc = 'event-create';
-        if (ev.event_type.includes('CONFLICT')) tc = 'event-conflict';
-        if (ev.event_type.includes('SUBMITTED')) tc = 'event-submit';
-        if (ev.event_type.includes('CLAIMED')) tc = 'event-claim';
-        d.innerHTML = `<div class="audit-event-header"><span class="audit-event-type ${tc}">${ev.event_type.replace('EVENT_','').replace(/_/g,' ')}</span><span class="audit-event-time">${new Date(ev.timestamp*1000).toLocaleTimeString()}</span></div><div class="audit-event-detail"><span>Actor: <strong style="color:var(--text-primary);">@${ev.actor}</strong></span><span style="color:var(--text-muted);">Key: ${ev.idempotency_key.slice(0,16)}…</span></div>`;
-        c.appendChild(d);
+        const card = document.createElement('div');
+        card.className = 'audit-event';
+
+        const header = document.createElement('div');
+        header.className = 'audit-event-header';
+
+        const typeSpan = document.createElement('span');
+        let evClass = 'ev-create';
+        if (ev.event_type.includes('CONFLICT')) evClass = 'ev-conflict';
+        else if (ev.event_type.includes('SUBMITTED')) evClass = 'ev-submit';
+        else if (ev.event_type.includes('CLAIMED')) evClass = 'ev-claim';
+        typeSpan.className = `audit-event-type ${evClass}`;
+        typeSpan.textContent = ev.event_type.replace('EVENT_', '').replace(/_/g, ' ');
+
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'audit-event-time';
+        timeSpan.textContent = new Date((ev.timestamp || Date.now() / 1000) * 1000).toLocaleTimeString();
+
+        header.appendChild(typeSpan);
+        header.appendChild(timeSpan);
+
+        const actorEl = document.createElement('div');
+        actorEl.className = 'audit-event-actor';
+        actorEl.textContent = `Actor: @${ev.actor || 'system'}`;
+
+        const keyEl = document.createElement('div');
+        keyEl.className = 'audit-event-key';
+        const rawKey = ev.idempotency_key || '';
+        keyEl.textContent = `Key: ${rawKey.length > 22 ? rawKey.slice(0, 20) + '…' : rawKey}`;
+
+        card.appendChild(header);
+        card.appendChild(actorEl);
+        card.appendChild(keyEl);
+        container.appendChild(card);
       });
     }
 
     function renderFallbackAuditTrail(node) {
-      const ev = [{ event_type:"EVENT_NODE_CREATED", actor:"system", timestamp:node.created_at, idempotency_key:`init-${node.id}-001` }];
-      if (['IN_PROGRESS','COMPLETED','STALE_CONFLICT'].includes(node.status))
-        ev.push({ event_type:"EVENT_TASK_CLAIMED", actor:node.assigned_to||"claude-code", timestamp:node.created_at+30, idempotency_key:`claim-${node.id}-994` });
-      if (node.status === 'STALE_CONFLICT')
-        ev.push({ event_type:"EVENT_CONFLICT_DETECTED", actor:"dag-invalidator", timestamp:node.updated_at, idempotency_key:`conflict-${node.id}-blast` });
-      else if (node.status === 'COMPLETED')
-        ev.push({ event_type:"EVENT_TASK_SUBMITTED", actor:node.assigned_to||"codex-agent", timestamp:node.updated_at, idempotency_key:`submit-${node.id}-ok` });
+      const ev = [{
+        event_type: 'EVENT_NODE_CREATED',
+        actor: node.assigned_to || 'system',
+        timestamp: node.created_at || Date.now() / 1000,
+        idempotency_key: `seed-${node.id.toLowerCase()}`
+      }];
+      if (['IN_PROGRESS', 'COMPLETED', 'STALE_CONFLICT'].includes(node.status)) {
+        ev.push({
+          event_type: 'EVENT_TASK_CLAIMED',
+          actor: node.assigned_to || 'claude-code',
+          timestamp: (node.created_at || Date.now() / 1000) + 30,
+          idempotency_key: `claim-${node.id.toLowerCase()}`
+        });
+      }
+      if (node.status === 'STALE_CONFLICT') {
+        ev.push({
+          event_type: 'EVENT_CONFLICT_DETECTED',
+          actor: 'dag-invalidator',
+          timestamp: node.updated_at || Date.now() / 1000,
+          idempotency_key: `conflict-${node.id.toLowerCase()}-blast`
+        });
+      } else if (node.status === 'COMPLETED') {
+        ev.push({
+          event_type: 'EVENT_TASK_SUBMITTED',
+          actor: node.assigned_to || 'codex-agent',
+          timestamp: node.updated_at || Date.now() / 1000,
+          idempotency_key: `submit-${node.id.toLowerCase()}`
+        });
+      }
       renderAuditTrail(ev);
     }
 
-    // ===================== EVENT LOG =====================
+    // ===================== LIVE EVENT LOG =====================
     function logLiveEvent(event) {
-      const div = document.createElement('div');
-      div.className = 'log-line';
-      const t = new Date((event.timestamp || Date.now()/1000) * 1000).toLocaleTimeString();
+      const row = document.createElement('div');
+      row.className = 'log-line';
+
+      const t = document.createElement('span');
+      t.className = 'log-time';
+      t.textContent = new Date((event.timestamp || Date.now() / 1000) * 1000).toLocaleTimeString();
+
       let bc = 'log-info', bt = 'INFO';
       if (event.type === 'EVENT_CONFLICT_DETECTED') { bc = 'log-conflict'; bt = 'CONFLICT'; }
-      if (event.type === 'EVENT_TASK_CLAIMED') { bc = 'log-claim'; bt = 'CLAIM'; }
-      if (event.type === 'EVENT_TASK_SUBMITTED') { bc = 'log-submit'; bt = 'SUBMIT'; }
-      div.innerHTML = `<span class="log-time">${t}</span><span class="log-badge ${bc}">${bt}</span><span style="font-weight:500;">${event.type||'EVENT'}</span><span>node=<strong>${event.node_id||'--'}</strong></span><span style="color:var(--text-muted);">actor=@${event.actor||'system'}</span>`;
-      eventStream.appendChild(div);
+      else if (event.type === 'EVENT_TASK_CLAIMED') { bc = 'log-claim'; bt = 'CLAIM'; }
+      else if (event.type === 'EVENT_TASK_SUBMITTED') { bc = 'log-submit'; bt = 'SUBMIT'; }
+
+      const badge = document.createElement('span');
+      badge.className = `log-badge ${bc}`;
+      badge.textContent = bt;
+
+      const evType = document.createElement('span');
+      evType.className = 'log-type';
+      evType.textContent = event.type || 'EVENT';
+
+      const nodeMeta = document.createElement('span');
+      nodeMeta.textContent = `node=${event.node_id || '--'}`;
+
+      const actorMeta = document.createElement('span');
+      actorMeta.textContent = `actor=@${event.actor || 'system'}`;
+
+      row.appendChild(t);
+      row.appendChild(badge);
+      row.appendChild(evType);
+      row.appendChild(nodeMeta);
+      row.appendChild(actorMeta);
+      eventStream.appendChild(row);
       eventStream.scrollTop = eventStream.scrollHeight;
     }
 
-    // ===================== WEBSOCKET =====================
-    function connectWebSocket() {
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // ===================== WEBSOCKET & FETCH =====================
+    function setWsStatus(state, label) {
       const dot = document.getElementById('ws-dot');
       const text = document.getElementById('ws-text');
+      dot.className = 'ws-dot-live' + (state === 'reconnecting' ? ' ws-dot-reconnecting' : state === 'off' ? ' ws-dot-off' : '');
+      text.className = 'ws-text' + (state === 'reconnecting' ? ' reconnecting' : state === 'off' ? ' off' : '');
+      text.textContent = label;
+    }
+
+    function connectWebSocket() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       try {
         ws = new WebSocket(`${protocol}//${location.host}/ws/graph`);
-        ws.onopen = () => { dot.className = 'ws-dot-live'; text.textContent = 'Connected'; fetchGraphState(); };
-        ws.onmessage = (e) => { try { const m = JSON.parse(e.data); logLiveEvent(m); fetchGraphState(); } catch {} };
-        ws.onclose = () => { dot.className = 'ws-dot-live ws-dot-reconnecting'; text.textContent = 'Reconnecting…'; setTimeout(connectWebSocket, 2000); };
-        ws.onerror = () => { dot.className = 'ws-dot-live ws-dot-off'; text.textContent = 'Standalone'; };
-      } catch { dot.className = 'ws-dot-live ws-dot-off'; text.textContent = 'Standalone'; }
+        ws.onopen = () => {
+          setWsStatus('live', 'Connected');
+          fetchGraphState();
+        };
+        ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            logLiveEvent(msg);
+            if (!isSimulating) fetchGraphState();
+          } catch {}
+        };
+        ws.onclose = () => {
+          setWsStatus('reconnecting', 'Reconnecting…');
+          setTimeout(connectWebSocket, 2500);
+        };
+        ws.onerror = () => {
+          setWsStatus('off', 'Standalone');
+        };
+      } catch {
+        setWsStatus('off', 'Standalone');
+      }
     }
 
     async function fetchGraphState() {
+      const t0 = performance.now();
       try {
         const res = await fetch('/api/graph');
         if (res.ok) {
           const data = await res.json();
-          if (data && data.nodes && data.nodes.length > 0) {
+          const ms = Math.max(1, Math.round(performance.now() - t0));
+          document.getElementById('ws-latency').textContent = ms < 25 ? '<25ms' : `${ms}ms`;
+
+          if (data && Array.isArray(data.nodes)) {
+            isSimulating = false;
+            document.getElementById('sim-banner').classList.remove('visible');
             graphData = data;
             renderDAG();
+
+            if (!hasInitialFit && graphData.nodes.length > 0) {
+              fitGraph();
+              hasInitialFit = true;
+            }
+
             if (selectedNodeId && graphData.nodes.some(n => n.id === selectedNodeId)) {
-              selectNode(selectedNodeId);
+              if (!drawerEl.classList.contains('collapsed')) selectNode(selectedNodeId);
             } else if (graphData.nodes.length > 0) {
-              selectNode(graphData.nodes[0].id);
+              const preferred = graphData.nodes.find(n => n.status === 'STALE_CONFLICT') || graphData.nodes.find(n => n.id === 'TSK-03') || graphData.nodes[0];
+              selectNode(preferred.id);
+            } else {
+              selectedNodeId = null;
+              setDrawerCollapsed(true);
             }
           }
         }
-      } catch (err) {
-        if (graphData.nodes.length === 0) { graphData = initialFallbackData; renderDAG(); selectNode("TSK-03"); }
+      } catch {
+        if (graphData.nodes.length === 0) {
+          graphData = structuredClone(initialFallbackData);
+          renderDAG();
+          fitGraph();
+          hasInitialFit = true;
+          selectNode('TSK-03');
+        }
       }
     }
 
-    // ===================== PAN & ZOOM & NODE DRAGGING =====================
-    function updateTransform() { viewportG.setAttribute('transform', `translate(${pan.x},${pan.y}) scale(${zoom})`); }
+    // ===================== PAN, ZOOM & FIT =====================
+    function updateTransform() {
+      viewportG.setAttribute('transform', `translate(${pan.x}, ${pan.y}) scale(${zoom})`);
+    }
+
+    function fitGraph() {
+      const nodes = graphData.nodes || [];
+      if (!nodes.length) {
+        zoom = 1.0;
+        pan = { x: 24, y: 24 };
+        updateTransform();
+        return;
+      }
+
+      const positions = getNodePositions(nodes);
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      nodes.forEach(n => {
+        const p = positions[n.id];
+        if (!p) return;
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y - 38); // room for skip-level overhead edges
+        maxX = Math.max(maxX, p.x + p.width);
+        maxY = Math.max(maxY, p.y + p.height);
+      });
+
+      const rect = svg.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const padX = 32;
+      const padTop = 58; // room for "Knowledge graph" overlay header
+      const padBottom = 56; // room for zoom toolbar
+      const availW = Math.max(200, rect.width - padX * 2);
+      const availH = Math.max(180, rect.height - padTop - padBottom);
+      const contentW = Math.max(1, maxX - minX);
+      const contentH = Math.max(1, maxY - minY);
+
+      zoom = Math.min(1.15, Math.max(0.4, Math.min(availW / contentW, availH / contentH)));
+      pan.x = Math.round((rect.width - contentW * zoom) / 2 - minX * zoom);
+      pan.y = Math.round(padTop + (availH - contentH * zoom) / 2 - minY * zoom);
+      updateTransform();
+    }
 
     svg.addEventListener('mousedown', (e) => {
       if (e.target === svg || e.target.tagName === 'path' || e.target.id === 'dag-svg') {
-        isDragging = true; svg.style.cursor = 'grabbing';
+        isDraggingCanvas = true;
+        svg.classList.add('grabbing');
         dragStart = { x: e.clientX - pan.x, y: e.clientY - pan.y };
       }
     });
 
     window.addEventListener('mousemove', (e) => {
       if (draggingNodeId) {
-        const defaultPositions = layoutGraph(graphData.nodes);
-        const cur = customPositions[draggingNodeId] || defaultPositions[draggingNodeId];
+        didDragMove = true;
         const newX = (e.clientX - pan.x) / zoom - nodeDragOffset.x;
         const newY = (e.clientY - pan.y) / zoom - nodeDragOffset.y;
         customPositions[draggingNodeId] = { x: Math.round(newX), y: Math.round(newY) };
         renderDAG();
         return;
       }
-      if (isDragging) {
+      if (isDraggingCanvas) {
         pan.x = e.clientX - dragStart.x;
         pan.y = e.clientY - dragStart.y;
         updateTransform();
@@ -1034,46 +2299,213 @@
     });
 
     window.addEventListener('mouseup', () => {
-      isDragging = false;
+      isDraggingCanvas = false;
       draggingNodeId = null;
-      svg.style.cursor = 'grab';
+      svg.classList.remove('grabbing');
     });
 
-    svg.addEventListener('wheel', (e) => { e.preventDefault(); zoom = Math.min(2.5, Math.max(0.3, zoom * (e.deltaY < 0 ? 1.08 : 0.92))); updateTransform(); }, { passive: false });
-
-    document.getElementById('btn-zoom-in').onclick = () => { zoom = Math.min(2.0, zoom * 1.15); updateTransform(); };
-    document.getElementById('btn-zoom-out').onclick = () => { zoom = Math.max(0.4, zoom * 0.85); updateTransform(); };
-    document.getElementById('btn-reset-zoom').onclick = () => {
-      zoom = 1.0;
-      pan = { x: 60, y: 50 };
-      customPositions = {};
+    svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.08 : 0.92;
+      const nextZoom = Math.min(2.4, Math.max(0.35, zoom * factor));
+      const rect = svg.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      pan.x = mx - ((mx - pan.x) / zoom) * nextZoom;
+      pan.y = my - ((my - pan.y) / zoom) * nextZoom;
+      zoom = nextZoom;
       updateTransform();
+    }, { passive: false });
+
+    document.getElementById('btn-zoom-in').onclick = () => {
+      zoom = Math.min(2.2, zoom * 1.15);
+      updateTransform();
+    };
+    document.getElementById('btn-zoom-out').onclick = () => {
+      zoom = Math.max(0.35, zoom * 0.85);
+      updateTransform();
+    };
+    document.getElementById('btn-reset-zoom').onclick = () => {
+      customPositions = {};
+      renderDAG();
+      fitGraph();
+    };
+
+    // ===================== SIDEBAR FILTERING =====================
+    function updateFilterUI() {
+      document.querySelectorAll('.sidebar-item[data-filter-kind]').forEach(el => {
+        const isMatch = activeFilter &&
+          el.dataset.filterKind === activeFilter.kind &&
+          el.dataset.filterVal === activeFilter.value;
+        el.classList.toggle('active', Boolean(isMatch));
+      });
+      document.getElementById('btn-clear-filter').classList.toggle('visible', Boolean(activeFilter));
+    }
+
+    document.querySelectorAll('.sidebar-item[data-filter-kind]').forEach(el => {
+      el.addEventListener('click', () => {
+        const kind = el.dataset.filterKind;
+        const value = el.dataset.filterVal;
+        if (activeFilter && activeFilter.kind === kind && activeFilter.value === value) {
+          activeFilter = null;
+        } else {
+          activeFilter = { kind, value };
+        }
+        updateFilterUI();
+        renderDAG();
+      });
+    });
+
+    document.getElementById('btn-clear-filter').onclick = () => {
+      activeFilter = null;
+      updateFilterUI();
       renderDAG();
     };
-    document.getElementById('btn-refresh').onclick = () => fetchGraphState();
 
-    // Simulate blast
+    // ===================== DYNAMIC SAFE BLAST SIMULATION =====================
     document.getElementById('btn-simulate').onclick = () => {
-      const tsk3 = graphData.nodes.find(n => n.id === 'TSK-03');
-      const req1 = graphData.nodes.find(n => n.id === 'REQ-01');
-      if (tsk3 && req1) {
-        req1.version = 2;
-        req1.payload = { spec: "Ed25519 asymmetric auth tokens (v2 update)" };
-        tsk3.status = 'STALE_CONFLICT';
-        tsk3.payload.conflict = "BLAST RADIUS TRIGGERED: Upstream requirement REQ-01 altered to Ed25519. Invalidation propagated to TSK-03.";
-        renderDAG(); selectNode('TSK-03');
-        logLiveEvent({ type: "EVENT_CONFLICT_DETECTED", node_id: "TSK-03", actor: "dag-engine", timestamp: Date.now() / 1000 });
+      const nodes = graphData.nodes || [];
+      const edges = graphData.edges || [];
+      if (!nodes.length) return;
+
+      const root = nodes.find(n => n.type === 'REQUIREMENT') || nodes.find(n => n.type === 'DECISION') || nodes[0];
+      const visited = new Set();
+      const queue = [root.id];
+      const downstreamIds = [];
+
+      while (queue.length > 0) {
+        const curr = queue.shift();
+        edges.forEach(edge => {
+          if (edge.source === curr && !visited.has(edge.target)) {
+            visited.add(edge.target);
+            downstreamIds.push(edge.target);
+            queue.push(edge.target);
+          }
+        });
+      }
+
+      isSimulating = true;
+      document.getElementById('sim-banner').classList.add('visible');
+
+      root.version = (root.version || 1) + 1;
+      root.payload = {
+        ...(root.payload || {}),
+        simulated_shift: `Updated specification at v${root.version} (Blast radius preview)`
+      };
+
+      let firstAffected = null;
+      downstreamIds.forEach(id => {
+        const dep = nodes.find(n => n.id === id);
+        if (!dep) return;
+        if (dep.type === 'TASK' || dep.type === 'ARTIFACT') {
+          dep.status = 'STALE_CONFLICT';
+          dep.payload = {
+            ...(dep.payload || {}),
+            conflict: `BLAST RADIUS PREVIEW: Upstream ${root.id} shifted to v${root.version}. Dependent node ${dep.id} invalidated.`
+          };
+          if (!firstAffected) firstAffected = dep;
+        }
+      });
+
+      const targetToSelect = firstAffected || nodes.find(n => downstreamIds.includes(n.id)) || root;
+      renderDAG();
+      selectNode(targetToSelect.id);
+      logLiveEvent({
+        type: 'EVENT_CONFLICT_DETECTED',
+        node_id: targetToSelect.id,
+        actor: 'blast-preview',
+        timestamp: Date.now() / 1000
+      });
+    };
+
+    document.getElementById('btn-refresh').onclick = () => fetchGraphState();
+    document.getElementById('btn-sim-restore').onclick = () => fetchGraphState();
+
+    // ===================== SIDEBARS, DRAWER & HELP MODAL =====================
+    document.getElementById('btn-toggle-left-sidebar').onclick = () => {
+      const collapsed = leftSidebarEl.classList.toggle('collapsed');
+      const btn = document.getElementById('btn-toggle-left-sidebar');
+      const icon = document.getElementById('icon-left-sidebar-toggle');
+      btn.title = collapsed ? 'Expand node types sidebar' : 'Collapse node types sidebar';
+      btn.setAttribute('aria-label', btn.title);
+      icon.innerHTML = collapsed
+        ? '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/>'
+        : '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/>';
+      if (graphData.nodes.length && !Object.keys(customPositions).length) {
+        setTimeout(() => fitGraph(), 190);
       }
     };
 
-    document.getElementById('btn-close-drawer').onclick = () => { selectedNodeId = null; renderDAG(); };
+    document.getElementById('btn-close-drawer').onclick = () => {
+      setDrawerCollapsed(true);
+    };
+
+    document.getElementById('btn-expand-drawer').onclick = () => {
+      if (!selectedNodeId && graphData.nodes.length > 0) {
+        selectNode(graphData.nodes[0].id);
+      } else {
+        setDrawerCollapsed(false);
+      }
+    };
+
+    // ===================== LIVE EVENT LOG RESIZE SLIDER =====================
+    const eventLogBarEl = document.getElementById('event-log-bar');
+    const eventLogResizerEl = document.getElementById('event-log-resizer');
+    let isResizingEventLog = false;
+    let eventLogResizeStartY = 0;
+    let eventLogResizeStartH = 100;
+
+    eventLogResizerEl.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isResizingEventLog = true;
+      eventLogResizeStartY = e.clientY;
+      eventLogResizeStartH = eventLogBarEl.getBoundingClientRect().height;
+      eventLogResizerEl.classList.add('dragging');
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    eventLogResizerEl.addEventListener('dblclick', () => {
+      eventLogBarEl.style.height = '100px';
+      if (graphData.nodes.length && !Object.keys(customPositions).length) {
+        requestAnimationFrame(() => fitGraph());
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isResizingEventLog) return;
+      const maxH = Math.max(160, Math.round(window.innerHeight * 0.58));
+      const nextH = Math.max(64, Math.min(maxH, Math.round(eventLogResizeStartH + (eventLogResizeStartY - e.clientY))));
+      eventLogBarEl.style.height = `${nextH}px`;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!isResizingEventLog) return;
+      isResizingEventLog = false;
+      eventLogResizerEl.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      if (graphData.nodes.length && !Object.keys(customPositions).length) {
+        requestAnimationFrame(() => fitGraph());
+      }
+    });
+
+    const helpModal = document.getElementById('help-modal');
+    document.getElementById('btn-help').onclick = () => helpModal.classList.add('open');
+    document.getElementById('btn-close-help').onclick = () => helpModal.classList.remove('open');
+    helpModal.addEventListener('click', (e) => {
+      if (e.target === helpModal) helpModal.classList.remove('open');
+    });
+
+    window.addEventListener('resize', () => {
+      if (graphData.nodes.length && !Object.keys(customPositions).length) fitGraph();
+    });
 
     // ===================== INIT =====================
-    createAmbientParticles();
-    graphData = initialFallbackData;
+    graphData = structuredClone(initialFallbackData);
     renderDAG();
-    selectNode("TSK-03");
-    updateTransform();
+    fitGraph();
+    selectNode('TSK-03');
     connectWebSocket();
     fetchGraphState();
   </script>

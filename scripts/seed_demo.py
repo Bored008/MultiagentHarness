@@ -5,17 +5,38 @@ into OmniHarness for live two-laptop testing.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from pathlib import Path
+
 import httpx
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-def seed_graph(server_url: str = "http://127.0.0.1:8000") -> None:
+from harness.seeds import get_seed_nodes
+
+DEFAULT_SERVER = os.environ.get("OMNIHARNESS_SERVER", "http://127.0.0.1:8000")
+
+
+def seed_graph(server_url: str = DEFAULT_SERVER) -> None:
     server_url = server_url.rstrip("/")
     print(f"Connecting to OmniHarness on {server_url}...")
 
     client = httpx.Client(base_url=server_url, timeout=10.0)
 
-    # 1. Reset to clean state
+    try:
+        fast = client.post("/api/seed/auth")
+        if fast.status_code == 200:
+            info = fast.json()
+            print(f"  ✔ Seeded 'auth' via /api/seed/auth ({info.get('total_nodes')} nodes)")
+            print(f"  Ready tasks: {info.get('ready_tasks', [])}")
+            print(f"\nOpen dashboard: {server_url}/dashboard")
+            return
+    except Exception:
+        pass
+
     try:
         r = client.post("/api/reset")
         if r.status_code == 200:
@@ -23,56 +44,7 @@ def seed_graph(server_url: str = "http://127.0.0.1:8000") -> None:
     except Exception as e:
         print(f"  [!] Reset note: {e}")
 
-    # 2. Seed initial nodes
-    nodes = [
-        {
-            "id": "REQ-01",
-            "title": "Auth Token Specification",
-            "type": "REQUIREMENT",
-            "payload": {"spec": "JWT RS256 with 15min expiry", "algorithm": "RS256"},
-            "dependencies": [],
-            "actor": "product-architect",
-            "idempotency_key": "seed-req-01",
-        },
-        {
-            "id": "DEC-01",
-            "title": "JWT Token Architecture Decision",
-            "type": "DECISION",
-            "payload": {"decision": "Stateless asymmetric JWT architecture", "crypto": "RS256"},
-            "dependencies": ["REQ-01"],
-            "actor": "security-lead",
-            "idempotency_key": "seed-dec-01",
-        },
-        {
-            "id": "TSK-01",
-            "title": "Auth Token Schema & Types",
-            "type": "TASK",
-            "payload": {"instructions": "Define Pydantic token validation schemas"},
-            "dependencies": ["DEC-01"],
-            "actor": "claude-code-cli",
-            "idempotency_key": "seed-tsk-01",
-        },
-        {
-            "id": "TSK-02",
-            "title": "Token Verifier Middleware",
-            "type": "TASK",
-            "payload": {"instructions": "Implement FastAPI Bearer token validator"},
-            "dependencies": ["TSK-01"],
-            "actor": "openai-codex",
-            "idempotency_key": "seed-tsk-02",
-        },
-        {
-            "id": "TSK-03",
-            "title": "FastAPI Token Verification Route",
-            "type": "TASK",
-            "payload": {"instructions": "Expose /auth/verify verification endpoint"},
-            "dependencies": ["DEC-01"],
-            "actor": "claude-code-cli",
-            "idempotency_key": "seed-tsk-03",
-        },
-    ]
-
-    for n in nodes:
+    for n in get_seed_nodes("auth"):
         res = client.post("/api/nodes", json=n)
         if res.status_code in (200, 201):
             print(f"  ✔ Created [{n['type']}] {n['id']}: {n['title']}")
@@ -85,6 +57,6 @@ def seed_graph(server_url: str = "http://127.0.0.1:8000") -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Seed initial OmniHarness nodes for live testing")
-    parser.add_argument("--server", default="http://127.0.0.1:8000", help="OmniHarness server URL")
+    parser.add_argument("--server", default=DEFAULT_SERVER, help="OmniHarness server URL")
     args = parser.parse_args()
     seed_graph(args.server)

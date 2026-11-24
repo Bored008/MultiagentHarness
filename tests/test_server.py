@@ -400,6 +400,102 @@ def test_reset_graph_endpoint(client):
     assert len(client.get("/graph").json()["nodes"]) == 0
 
 
+def test_get_seed_templates_endpoint(client):
+    """Verify GET /api/seed/templates returns sorted built-in template names."""
+    resp = client.get("/api/seed/templates")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "templates" in data
+    assert data["templates"] == ["auth", "tictactoe"]
+
+
+def test_seed_tictactoe_template_and_ready_tasks(client):
+    """Verify POST /api/seed/tictactoe seeds the DAG, broadcasts GRAPH_SEEDED, and unlocks ready tasks."""
+    with client.websocket_connect("/ws") as ws:
+        _ = ws.receive_json()  # Handshake
+
+        resp = client.post("/api/seed/tictactoe")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["template"] == "tictactoe"
+        assert data["nodes_created"] == 8
+        assert data["total_nodes"] == 8
+        assert set(data["ready_tasks"]) == {"TSK-01", "TSK-03"}
+
+        ws_msg = ws.receive_json()
+        assert ws_msg["event"] == "GRAPH_SEEDED"
+        assert ws_msg["data"]["template"] == "tictactoe"
+        assert ws_msg["data"]["nodes_created"] == 8
+
+    ready_resp = client.get("/api/tasks/ready")
+    assert ready_resp.status_code == 200
+    ready_nodes = ready_resp.json()
+    ready_ids = {n["id"] for n in ready_nodes}
+    assert ready_ids == {"TSK-01", "TSK-03"}
+    assert all(n["type"] == "TASK" and n["status"] == "PENDING" for n in ready_nodes)
+
+    # Claiming TSK-01 removes it from ready; completing TSK-01 unlocks TSK-02 & TSK-05
+    client.post("/api/tasks/TSK-01/claim", json={"agent_id": "claude-code-cli", "idempotency_key": "k-c1"})
+    ready_after_claim = {n["id"] for n in client.get("/api/tasks/ready").json()}
+    assert ready_after_claim == {"TSK-03"}
+
+    client.post(
+        "/api/tasks/TSK-01/submit",
+        json={"agent_id": "claude-code-cli", "idempotency_key": "k-s1", "output": {"summary": "done"}},
+    )
+    ready_after_submit = {n["id"] for n in client.get("/api/tasks/ready").json()}
+    assert ready_after_submit == {"TSK-02", "TSK-03", "TSK-05"}
+
+
+def test_seed_auth_template_resets_prior_graph_and_updates_ready(client):
+    """Verify POST /api/seed/auth resets existing nodes by default and seeds auth DAG."""
+    client.post("/tasks", json={"id": "STRAY-NODE", "title": "Stray", "type": "TASK"})
+    assert len(client.get("/api/graph").json()["nodes"]) == 1
+
+    resp = client.post("/api/seed/auth")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["template"] == "auth"
+    assert data["nodes_created"] == 5
+    assert data["total_nodes"] == 5
+    assert set(data["ready_tasks"]) == {"TSK-01", "TSK-03"}
+
+    graph_ids = {n["id"] for n in client.get("/api/graph").json()["nodes"]}
+    assert "STRAY-NODE" not in graph_ids
+    assert graph_ids == {"REQ-01", "DEC-01", "TSK-01", "TSK-02", "TSK-03"}
+
+    # Re-seeding with reset=false preserves existing nodes without duplicating them
+    no_reset_resp = client.post("/api/seed/auth?reset=false")
+    assert no_reset_resp.status_code == 200
+    assert no_reset_resp.json()["nodes_created"] == 0
+    assert no_reset_resp.json()["total_nodes"] == 5
+
+
+def test_seed_unknown_template_returns_404(client):
+    """Verify POST /api/seed/{unknown} returns 404 Not Found with available templates detail."""
+    resp = client.post("/api/seed/nonexistent_template")
+    assert resp.status_code == 404
+    detail = resp.json()["detail"]
+    assert "Unknown seed template" in detail
+    assert "auth" in detail
+    assert "tictactoe" in detail
+
+
+def test_ready_tasks_empty_and_non_task_filtering(client):
+    """Verify GET /api/tasks/ready ignores REQUIREMENT/DECISION/COMPLETED/IN_PROGRESS/STALE_CONFLICT nodes."""
+    assert client.get("/api/tasks/ready").json() == []
+
+    # REQ (PENDING) -> TSK-WAIT (PENDING) should not make TSK-WAIT ready because REQ is not COMPLETED
+    client.post("/tasks", json={"id": "REQ-R1", "title": "Req", "type": "REQUIREMENT"})
+    client.post("/tasks", json={"id": "TSK-WAIT", "title": "Waiting Task", "type": "TASK", "dependencies": ["REQ-R1"]})
+    client.post("/tasks", json={"id": "TSK-FREE", "title": "Free Task", "type": "TASK"})
+
+    ready_ids = [n["id"] for n in client.get("/api/tasks/ready").json()]
+    assert ready_ids == ["TSK-FREE"]
+
+
 # -------------------------------------------------------------
 # WebSocket Hub Tests: Connection, Handshake, Broadcasts & Pruning
 # -------------------------------------------------------------
@@ -565,3 +661,25 @@ def test_create_app_uses_env_db_path_and_creates_parent_dir(tmp_path, monkeypatc
 
     assert nested_db.exists()
 
+
+
+def test_agent_protocol_endpoints_and_dashboard_comment(client):
+    """Verify /llms.txt, /agent, and dashboard HTML expose the zero-UI agent protocol."""
+    seed_resp = client.post("/api/seed/tictactoe")
+    assert seed_resp.status_code == 200
+
+    for path in ("/llms.txt", "/agent"):
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/plain")
+        body = resp.text
+        assert "# OmniHarness Agent Protocol" in body
+        assert "TSK-01" in body
+        assert "TSK-03" in body
+        assert "/api/tasks/{TASK_ID}/claim" in body
+        assert "/api/tasks/{TASK_ID}/subgraph" in body
+        assert "/api/tasks/{TASK_ID}/submit" in body
+
+    dash = client.get("/dashboard")
+    assert dash.status_code == 200
+    assert "OMNIHARNESS AGENT PROTOCOL" in dash.text

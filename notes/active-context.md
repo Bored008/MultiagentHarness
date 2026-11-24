@@ -61,9 +61,22 @@
 - [x] **Build FastAPI REST & WebSocket Server**: `harness/server.py` exposing REST endpoints (`/api/nodes`, `/api/tasks`, `/api/requirements`) and WebSocket `/ws/graph` broadcasting (`< 50ms` latency).
 - [x] **Develop Universal Tool Adapters**: `adapters/claude_adapter.py` and `adapters/codex_adapter.py` subclassing `BaseAgentAdapter` with real-time WebSocket conflict listening and CLI entrypoints.
 - [x] **Visual 3D Depth Live Graph UI**: Merged `origin/feature/frontend-3d-redesign` into `main` featuring [harness/dashboard.html](file:///c:/Project/MultiagentHarness/harness/dashboard.html) with clean light theme, animated flows, 3D depth shadows, ambient floating particles, interactive node drag-and-drop repositioning, and conflict pulse glow rings.
-- [x] **Comprehensive Test Verification**: 64 passing unit and integration tests across all test suites (`test_store.py`, `test_graph.py`, `test_server.py`, `test_adapters.py`, `test_auth_middleware.py`).
-- [x] **Two-Laptop Testing & Tunnel WSS Auto-Detection**: Added `scripts/seed_demo.py` and `scripts/seed.bat`; updated `dashboard.html` for zero-friction HTTPS/WSS compatibility over Cloudflare tunnels.
+- [x] **Comprehensive Test Verification**: 74 passing unit and integration tests across all test suites (`test_store.py`, `test_graph.py`, `test_server.py`, `test_adapters.py`, `test_auth_middleware.py`).
+- [x] **Two-Laptop Testing & Tunnel WSS Auto-Detection**: Added `scripts/seed_demo.py` and `scripts/seed.bat`; updated `dashboard.html` for zero-friction HTTPS/WSS compatibility over Cloudflare tunnels and Render.
+- [x] **Render.com Docker Deployment**: Added `Dockerfile`, `.dockerignore`, and `render.yaml`; updated `harness/server.py` (`OMNIHARNESS_DB_PATH`, `PORT`) and `harness/store.py` (auto-mkdir). Deployed live at `https://multiagentharness.onrender.com`.
+- [x] **Agent-Native Protocol & One-Command Adapter CLI**: Added `harness/seeds.py` + `POST /api/seed/{template}` + `GET /api/tasks/ready` + `GET /llms.txt` / `GET /agent` in `harness/server.py`; kept `harness/dashboard.html` clean with only the empty-graph reset fix and a zero-UI `OMNIHARNESS AGENT PROTOCOL` HTML comment; extracted shared `adapters/cli.py` with `connect`, `tasks`, `start`, `done`, `seed`, `reset` + `.omniharness.json`/env config resolution across all 3 adapters; documented the 3-line agent workflow in `AGENTS.md`.
+
+- [x] **Figma Dashboard Consistency & Viewability Redesign**: Updated [harness/dashboard.html](file:///c:/Project/MultiagentHarness/harness/dashboard.html) to match Figma frame `7:2` (`tLMMvLQEAJ7u2mNhfUAqXO`): `#fafbfd` dot-grid canvas, 3-row node cards (`188x88px`), orthogonal stepped & dashed skip-level dependency routing, clickable Type/Status sidebar filters, collapsible Right Inspector Drawer, Help modal, `fitGraph()` zoom-to-fit, and dynamic non-destructive `Simulate Blast` preview.
 
 ### 5. Next Steps for Demonstration & Deployment
-1. **Live Multi-Laptop Rehearsal**: Launch `uvicorn harness.server:app --port 8000` and expose via `cloudflared tunnel` or `ngrok` for judge evaluation.
-2. **Interactive CLI Demonstrations**: Run `python -m adapters.claude_adapter` on Laptop 1 and `python -m adapters.codex_adapter` on Laptop 2 while the visual dashboard displays live updates on screen.
+1. **Push & Deploy to Render**: Push updated `main` so `https://multiagentharness.onrender.com` serves `/llms.txt`, `/agent`, `/api/seed/{template}`, `/api/tasks/ready`, and the Figma-aligned `dashboard.html`.
+2. **Agent-First Flow**: Point any coding agent at `https://multiagentharness.onrender.com/llms.txt` (or tell it in the repo to claim and complete a task using `AGENTS.md` / `adapters/cli.py`), then watch the live DAG update cleanly on `/dashboard`.
+
+---
+
+### 6. Clean Handoff Snapshot (2026-11-24 23:57 IST)
+- **Live Server**: `https://multiagentharness.onrender.com` (`/dashboard`, `/llms.txt`, `/agent`, `/docs`, `/health`)
+- **Latest Pushed Commit**: `a0c78e6` on `origin/main` (local improvements ready to commit & push)
+- **Files Created/Modified in Session**: `AGENTS.md`, `harness/seeds.py`, `harness/models.py`, `harness/server.py`, `harness/dashboard.html`, `adapters/cli.py`, `adapters/claude_adapter.py`, `adapters/codex_adapter.py`, `adapters/agy_adapter.py`, `scripts/seed_tictactoe.py`, `scripts/seed_demo.py`, `tests/test_server.py`, `tests/test_adapters.py`, `notes/active-context.md`, `notes/daily/2026-11-24.md`
+- **Verification**: `python -m pytest -q` (75/75 passed), `node --check` on extracted dashboard `<script>`, and headless browser visual verification at `1400x820` against Figma `7:2` (0 console errors).
+- **Next Actions**: Commit and push local changes to `origin/main` so Render auto-deploys `/llms.txt`, `/api/seed/{template}`, and the clean `dashboard.html`.
