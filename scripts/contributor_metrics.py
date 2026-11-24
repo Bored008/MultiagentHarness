@@ -17,8 +17,25 @@ def get_version() -> str:
     return METRICS_VERSION
 
 
+def scan_workspace_summary(root_dir: str = ".") -> Dict[str, Any]:
+    """Calculate summary statistics for repository files and modules."""
+    stats = {"python_files": 0, "markdown_files": 0, "total_lines": 0}
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        if any(ignored in dirpath for ignored in [".git", "__pycache__", "venv", ".pytest_cache"]):
+            continue
+        for f in filenames:
+            ext = os.path.splitext(f)[1].lower()
+            if ext == ".py":
+                stats["python_files"] += 1
+            elif ext == ".md":
+                stats["markdown_files"] += 1
+    return stats
+
+
 def main() -> int:
     print(f"OmniHarness Metrics Utility v{get_version()}")
+    summary = scan_workspace_summary()
+    print(f"Scanned: {summary['python_files']} Python files, {summary['markdown_files']} Markdown files")
     return 0
 
 
