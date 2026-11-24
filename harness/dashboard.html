@@ -281,24 +281,23 @@ Short CLI (if inside repo; save server once with `connect`):
       box-shadow: 0 2px 8px rgba(242, 95, 80, 0.28);
     }
 
-    /* ---- Stats Bar ---- */
-    .stats-bar {
-      height: 44px;
+    /* ---- Floating Workspace Stats Pill ---- */
+    .stats-pill {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      z-index: 10;
+      height: 47px;
+      padding: 0 26px;
       background: var(--bg-surface);
-      border-top: 1px solid var(--border-light);
-      border-bottom: 1px solid var(--border-light);
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-      flex-shrink: 0;
-    }
-
-    .stats-group {
+      border: 1px solid var(--border-light);
+      border-radius: 37px;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
       display: flex;
       align-items: center;
       gap: 28px;
+      max-width: calc(100% - 208px);
+      overflow: hidden;
     }
 
     .stat-item {
@@ -322,17 +321,22 @@ Short CLI (if inside repo; save server once with `connect`):
     }
 
     .sim-pill {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      z-index: 10;
       display: none;
       align-items: center;
       gap: 6px;
-      height: 24px;
-      padding: 0 10px;
-      border-radius: var(--radius-sm);
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 999px;
       background: var(--accent-amber-bg);
       border: 1px solid #f7d89c;
       color: #9a5b04;
       font-size: 11px;
       font-weight: 500;
+      box-shadow: var(--shadow-sm);
     }
     .sim-pill.visible { display: inline-flex; }
     .sim-pill button {
@@ -353,6 +357,7 @@ Short CLI (if inside repo; save server once with `connect`):
       display: flex;
       min-height: 0;
       overflow: hidden;
+      border-top: 1px solid var(--border-light);
     }
 
     /* Left Sidebar */
@@ -532,6 +537,8 @@ Short CLI (if inside repo; save server once with `connect`):
       z-index: 0;
       background-image: radial-gradient(circle, #dde2eb 1px, transparent 1px);
       background-size: 20px 20px;
+      -webkit-mask-image: radial-gradient(ellipse 88% 86% at 50% 48%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.18) 100%);
+      mask-image: radial-gradient(ellipse 88% 86% at 50% 48%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.18) 100%);
       pointer-events: none;
     }
 
@@ -579,7 +586,7 @@ Short CLI (if inside repo; save server once with `connect`):
     .canvas-controls {
       position: absolute;
       bottom: 16px;
-      left: 24px;
+      left: 16px;
       z-index: 10;
       display: flex;
       align-items: center;
@@ -1100,8 +1107,24 @@ Short CLI (if inside repo; save server once with `connect`):
       white-space: pre-wrap;
     }
 
+    @media (max-width: 1260px) {
+      .stats-pill {
+        gap: 16px;
+        padding: 0 18px;
+        height: 40px;
+      }
+    }
     @media (max-width: 1120px) {
       .agent-badges { display: none; }
+    }
+    @media (max-width: 1020px) {
+      .stats-pill {
+        gap: 12px;
+        padding: 0 14px;
+        height: 36px;
+      }
+      .stats-pill .stat-item { font-size: 11px; gap: 5px; }
+      .stats-pill .stat-value { font-size: 12px; }
     }
     @media (max-width: 860px) {
       .left-sidebar { width: 58px; padding: 14px 8px; align-items: center; }
@@ -1161,21 +1184,6 @@ Short CLI (if inside repo; save server once with `connect`):
       </button>
     </div>
   </header>
-
-  <!-- STATS BAR -->
-  <div class="stats-bar">
-    <div class="stats-group">
-      <div class="stat-item"><span>Nodes</span> <span class="stat-value" id="stat-total-nodes">0</span></div>
-      <div class="stat-item"><span>Requirements</span> <span class="stat-value" id="stat-reqs">0</span></div>
-      <div class="stat-item"><span>Decisions</span> <span class="stat-value" id="stat-decs">0</span></div>
-      <div class="stat-item"><span>In-Flight</span> <span class="stat-value" id="stat-leases">0</span></div>
-      <div class="stat-item conflict"><span>Conflicts</span> <span class="stat-value" id="stat-conflicts">0</span></div>
-    </div>
-    <div class="sim-pill" id="sim-banner">
-      Simulation Preview active
-      <button id="btn-sim-restore" type="button">Restore live state</button>
-    </div>
-  </div>
 
   <!-- MAIN WORKSPACE -->
   <div class="main-layout">
@@ -1248,6 +1256,20 @@ Short CLI (if inside repo; save server once with `connect`):
       <div class="canvas-overlay-header">
         <div class="canvas-overlay-title">Knowledge graph</div>
         <div class="canvas-overlay-sub" id="canvas-summary">0 nodes · 0 dependencies</div>
+      </div>
+
+      <!-- Floating Workspace Statistics Pill -->
+      <div class="stats-pill" aria-label="Workspace statistics">
+        <div class="stat-item"><span>Nodes</span> <span class="stat-value" id="stat-total-nodes">0</span></div>
+        <div class="stat-item"><span>Requirements</span> <span class="stat-value" id="stat-reqs">0</span></div>
+        <div class="stat-item"><span>Decisions</span> <span class="stat-value" id="stat-decs">0</span></div>
+        <div class="stat-item"><span>In-Flight</span> <span class="stat-value" id="stat-leases">0</span></div>
+        <div class="stat-item conflict"><span>Conflicts</span> <span class="stat-value" id="stat-conflicts">0</span></div>
+      </div>
+
+      <div class="sim-pill" id="sim-banner">
+        Simulation Preview active
+        <button id="btn-sim-restore" type="button">Restore live state</button>
       </div>
 
       <div class="canvas-empty" id="canvas-empty">
@@ -2301,7 +2323,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         const p = positions[n.id];
         if (!p) return;
         minX = Math.min(minX, p.x);
-        minY = Math.min(minY, p.y - 38); // room for skip-level overhead edges
+        minY = Math.min(minY, p.y - 44); // room for skip-level overhead edges
         maxX = Math.max(maxX, p.x + p.width);
         maxY = Math.max(maxY, p.y + p.height);
       });
@@ -2310,7 +2332,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       if (!rect.width || !rect.height) return;
 
       const padX = 32;
-      const padTop = 58; // room for "Knowledge graph" overlay header
+      const padTop = 64; // room for "Knowledge graph" header & floating stats pill
       const padBottom = 56; // room for zoom toolbar
       const availW = Math.max(200, rect.width - padX * 2);
       const availH = Math.max(180, rect.height - padTop - padBottom);
