@@ -123,6 +123,26 @@ python -m adapters.<claude|codex|agy>_adapter done <TASK_ID> --file output.json
 
 ---
 
+## 🔌 REST & WebSocket API Reference
+
+OmniHarness exposes a clean, fast REST API paired with a real-time WebSocket hub:
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/dashboard` | `GET` | Interactive visual DAG dashboard with real-time WebSocket sync |
+| `/llms.txt` | `GET` | Machine-readable agent discovery protocol and active DAG state |
+| `/api/graph` | `GET` | Full in-memory knowledge graph representation (nodes & edges) |
+| `/api/tasks/ready` | `GET` | List of unblocked, claimable task IDs whose dependencies are met |
+| `/api/tasks/{id}/claim` | `POST` | Atomically claim lease on a task node with idempotency key |
+| `/api/tasks/{id}/subgraph` | `GET` | Scoped (~1.5k token) upstream lineage and requirement prompt |
+| `/api/tasks/{id}/submit` | `POST` | Submit completed task artifact with deterministic version bump |
+| `/api/requirements/{id}/update` | `POST` | Update specification and trigger automated blast-radius invalidation |
+| `/api/seed/{template}` | `POST` | Seed graph with pre-configured DAG templates (`tictactoe`, `auth`) |
+| `/api/reset` | `POST` | Reset graph and event store for demo repeatability |
+| `/ws/graph` | `WS` | Real-time bidirectional WebSocket event broadcaster (<50ms sync) |
+
+---
+
 ## 🧪 Running the Demo Workflow
 
 Execute the deterministic 6-gate evaluation workflow simulating Claude Code CLI and Codex agents collaborating, claiming tasks, handling live requirement shifts, and tracing audit lineage:
