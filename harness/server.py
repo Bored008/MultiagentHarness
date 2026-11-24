@@ -43,6 +43,8 @@ from harness.models import (
 )
 from harness.seeds import get_seed_nodes, list_seed_templates
 from harness.store import EventStore
+from todo.router import router as todo_router
+from todo.store import TodoStore
 
 logger = logging.getLogger("omniharness.server")
 
@@ -105,6 +107,7 @@ def create_app(
     dag_manager: Optional[DAGManager] = None,
     store: Optional[EventStore] = None,
     snapshot_file: Optional[str] = None,
+    todo_store: Optional[TodoStore] = None,
 ) -> FastAPI:
     """
     Factory function to initialize and configure the OmniHarness FastAPI server.
@@ -166,6 +169,16 @@ def create_app(
     app.state.ws_manager = ws_manager
     app.state.manager = ws_manager
     app.state.mutation_lock = mutation_lock
+
+    # Mount To-Do app store & router
+    if todo_store is not None:
+        app.state.todo_store = todo_store
+    elif db_path is not None and db_path != "omniharness.db":
+        app.state.todo_store = TodoStore(db_path=os.path.join(os.path.dirname(db_path) or ".", "todos.db"))
+    else:
+        app.state.todo_store = TodoStore(db_path=os.environ.get("TODO_DB_PATH", "todos.db"))
+
+    app.include_router(todo_router)
 
     # ---------------------------------------------------------
     # WebSocket Realtime Synchronization Endpoints
