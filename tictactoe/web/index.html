@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeonGrid Tic Tac Toe — OmniHarness Multi-Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              cyan: '#06B6D4',
+              magenta: '#D946EF',
+            }
+          },
+          animation: {
+            'scaleIn': 'scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            'shake': 'shake 0.3s ease-in-out',
+          },
+          keyframes: {
+            scaleIn: {
+              '0%': { transform: 'scale(0.5)', opacity: '0' },
+              '100%': { transform: 'scale(1)', opacity: '1' }
+            },
+            shake: {
+              '0%, 100%': { transform: 'translateX(0)' },
+              '20%, 60%': { transform: 'translateX(-4px)' },
+              '40%, 80%': { transform: 'translateX(4px)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes strikeDraw {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.6);
+    }
+    .grid-cell {
+      aspect-ratio: 1 / 1;
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .grid-cell:hover:not(.occupied-x):not(.occupied-o) {
+      background: rgba(30, 41, 59, 0.8);
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+    }
+    .win-cell {
+      background: rgba(30, 41, 59, 0.95);
+      box-shadow: 0 0 25px rgba(6, 182, 212, 0.3);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-slate-950 via-slate-900 to-black text-slate-100 font-sans min-h-screen flex flex-col items-center justify-center p-4 selection:bg-cyan-500 selection:text-white relative overflow-x-hidden">
+
+  <!-- Fullscreen Confetti Canvas (TSK-04) -->
+  <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+  <main class="w-full max-w-lg flex flex-col items-center space-y-6 relative z-10">
+
+    <!-- Header & Brand -->
+    <header class="text-center space-y-1">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-card text-xs font-mono text-cyan-400 mb-1 border border-cyan-500/20 shadow-sm shadow-cyan-500/10">
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+        OmniHarness Multi-Agent Demo
+      </div>
+      <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-cyan-400 via-sky-300 to-fuchsia-400 bg-clip-text text-transparent">
+        NeonGrid Tic Tac Toe
+      </h1>
+      <p class="text-xs md:text-sm text-slate-400 font-mono">
+        Unbeatable Minimax AI • Procedural Web Audio • Vector SVG Strikes
+      </p>
+    </header>
+
+    <!-- Controls & Game Mode Toggle -->
+    <div class="w-full flex items-center justify-between gap-3 glass-card p-3 rounded-2xl">
+      <div class="flex items-center gap-2">
+        <label for="mode-select" class="text-xs font-mono text-slate-400">Mode:</label>
+        <select id="mode-select" class="bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-500 transition">
+          <option value="ai-unbeatable" selected>🤖 Unbeatable AI (Minimax)</option>
+          <option value="ai-casual">🎲 Casual AI (30% Error)</option>
+          <option value="pvp">👥 Local 2-Player (PvP)</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btn-mute" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sky-400 hover:bg-slate-700 transition">
+          🔊 Audio On
+        </button>
+        <button id="btn-reset" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white transition">
+          🔄 Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Real-Time Scoreboard (TSK-03) -->
+    <div class="w-full grid grid-cols-4 gap-2 text-center">
+      <div class="glass-card p-2.5 rounded-xl border-cyan-500/20">
+        <div class="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">Player X</div>
+        <div id="score-x" class="text-xl font-bold font-mono text-cyan-300">0</div>
+      </div>
+      <div class="glass-card p-2.5 rounded-xl border-slate-700/50">
+        <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Draws</div>
+        <div id="score-draw" class="text-xl font-bold font-mono text-slate-300">0</div>
+      </div>
+      <div class="glass-card p-2.5 rounded-xl border-fuchsia-500/20">
+        <div class="text-[10px] font-mono text-fuchsia-400 uppercase tracking-wider">Player O</div>
+        <div id="score-o" class="text-xl font-bold font-mono text-fuchsia-300">0</div>
+      </div>
+      <div class="glass-card p-2.5 rounded-xl border-amber-500/20">
+        <div class="text-[10px] font-mono text-amber-400 uppercase tracking-wider">Streak 🔥</div>
+        <div id="streak-count" class="text-xl font-bold font-mono text-amber-300">0</div>
+      </div>
+    </div>
+
+    <!-- Active Turn Status Indicator -->
+    <div id="turn-indicator" class="glass-card px-4 py-2 rounded-full border border-slate-800 flex items-center justify-center">
+      <!-- Injected by app.js -->
+    </div>
+
+    <!-- Interactive 3x3 Gameboard with SVG Vector Strike Overlay (TSK-03 & TSK-04) -->
+    <div class="relative w-full max-w-[360px] aspect-square">
+      <!-- 3x3 Grid Cells -->
+      <div id="game-board" class="w-full h-full grid grid-cols-3 gap-2.5 p-2.5 glass-card rounded-2xl shadow-2xl relative">
+        <button class="grid-cell rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center cursor-pointer select-none" data-index="0" aria-label="Cell 1"></button>
+        <button class="grid-cell rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center cursor-pointer select-none" data-index="1" aria-label="Cell 2"></button>
+        <button class="grid-cell rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center cursor-pointer select-none" data-index="2" aria-label="Cell 3"></button>
+        <button class="grid-cell rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center cursor-pointer select-none" data-index="3" aria-label="Cell 4"></button>
+        <button class="grid-cell rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center cursor-pointer select-none" data-index="4" aria-label="Cell 5"></button>
+        <button class="grid-cell rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center cursor-pointer select-none" data-index="5" aria-label="Cell 6"></button>
+        <button class="grid-cell rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center cursor-pointer select-none" data-index="6" aria-label="Cell 7"></button>
+        <button class="grid-cell rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center cursor-pointer select-none" data-index="7" aria-label="Cell 8"></button>
+        <button class="grid-cell rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center cursor-pointer select-none" data-index="8" aria-label="Cell 9"></button>
+
+        <!-- SVG Vector Strike-Through Layer (TSK-04) -->
+        <svg id="strike-svg" class="absolute inset-0 w-full h-full pointer-events-none z-20"></svg>
+      </div>
+    </div>
+
+    <!-- Footer & Keyboard Navigation Guide -->
+    <footer class="w-full flex items-center justify-between text-[11px] font-mono text-slate-500 px-2">
+      <div>Keyboard: Keys <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">1</kbd>–<kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">9</kbd> or Numpad | <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">R</kbd> Reset</div>
+      <button id="btn-reset-stats" class="hover:text-rose-400 transition underline underline-offset-2">Reset Stats</button>
+    </footer>
+
+  </main>
+
+  <!-- Victory / Draw Modal Overlay (TSK-04) -->
+  <div id="result-modal" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden items-center justify-center p-4 z-40 animate-scaleIn">
+    <div class="glass-card max-w-sm w-full p-6 rounded-2xl text-center space-y-4 border border-slate-700 shadow-2xl">
+      <div id="modal-title" class="text-2xl font-extrabold bg-gradient-to-r from-cyan-400 to-fuchsia-400 bg-clip-text text-transparent">
+        Victory!
+      </div>
+      <p id="modal-desc" class="text-xs font-mono text-slate-300 leading-relaxed">
+        Round details will appear here.
+      </p>
+      <div class="pt-2">
+        <button id="btn-rematch" class="w-full py-2.5 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-600 hover:from-cyan-400 hover:to-fuchsia-500 text-white shadow-lg shadow-cyan-500/25 transition active:scale-95">
+          ⚡ Play Instant Rematch
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="audio.js"></script>
+  <script src="strike.js"></script>
+  <script src="confetti.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
