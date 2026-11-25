@@ -70,6 +70,8 @@ Short CLI (if inside repo; save server once with `connect`):
 
     html, body {
       height: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
     }
 
     body {
@@ -270,6 +272,12 @@ Short CLI (if inside repo; save server once with `connect`):
     .btn:active { transform: translateY(0.5px); }
     .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 
+    .mobile-menu-btn {
+      display: none;
+      padding: 0 10px;
+      flex-shrink: 0;
+    }
+
     .btn-primary {
       background: var(--accent-coral);
       border-color: var(--accent-coral);
@@ -356,9 +364,19 @@ Short CLI (if inside repo; save server once with `connect`):
       flex: 1;
       display: flex;
       min-height: 0;
+      min-width: 0;
       overflow: hidden;
       border-top: 1px solid var(--border-light);
     }
+
+    .sidebar-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 39;
+      background: rgba(15, 23, 42, 0.35);
+      display: none;
+    }
+    .sidebar-backdrop.open { display: block; }
 
     /* Left Sidebar */
     .left-sidebar {
@@ -782,6 +800,7 @@ Short CLI (if inside repo; save server once with `connect`):
       display: block;
       cursor: grab;
       user-select: none;
+      touch-action: none;
     }
     #dag-svg.grabbing { cursor: grabbing; }
 
@@ -1095,6 +1114,7 @@ Short CLI (if inside repo; save server once with `connect`):
       display: flex;
       align-items: center;
       justify-content: center;
+      touch-action: none;
     }
 
     .event-log-resizer::before {
@@ -1476,16 +1496,210 @@ Short CLI (if inside repo; save server once with `connect`):
       .stats-pill .stat-item { font-size: 11px; gap: 5px; }
       .stats-pill .stat-value { font-size: 12px; }
     }
-    @media (max-width: 860px) {
-      .left-sidebar { width: 58px; padding: 14px 8px; align-items: center; }
-      .left-sidebar .sidebar-title,
-      .left-sidebar .sidebar-item span:not(.legend-icon),
-      .left-sidebar .sidebar-item .user-meta-wrap,
-      .left-sidebar .sidebar-help span,
-      .left-sidebar .filter-clear-btn,
-      .left-sidebar .sidebar-user-empty,
-      .left-sidebar .user-rename-form { display: none; }
-      .right-drawer { width: 290px; }
+    @media (max-width: 1024px) {
+      .mobile-menu-btn {
+        display: inline-flex;
+      }
+      .app-header {
+        height: auto;
+        min-height: 56px;
+        padding: 8px 14px;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+      }
+      .header-left {
+        gap: 10px;
+      }
+      .header-right {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .canvas-area {
+        min-width: 0;
+      }
+      .left-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 268px;
+        max-width: 82vw;
+        z-index: 40;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        box-shadow: var(--shadow-modal);
+      }
+      .left-sidebar.mobile-open {
+        transform: translateX(0);
+      }
+      .left-sidebar.collapsed {
+        width: 268px;
+        padding: 14px;
+        align-items: stretch;
+      }
+      .left-sidebar.collapsed .sidebar-section {
+        align-items: stretch;
+        width: auto;
+      }
+      .left-sidebar.collapsed .sidebar-header-row {
+        justify-content: space-between;
+        width: auto;
+      }
+      .left-sidebar.collapsed .sidebar-title,
+      .left-sidebar.collapsed .sidebar-item > span:not(.legend-icon),
+      .left-sidebar.collapsed .sidebar-item > .user-meta-wrap,
+      .left-sidebar.collapsed .sidebar-help > span,
+      .left-sidebar.collapsed .sidebar-user-empty,
+      .left-sidebar.collapsed .boards-group-label,
+      .left-sidebar.collapsed .board-item-meta {
+        display: revert;
+      }
+      .left-sidebar.collapsed .board-quick-actions {
+        display: flex;
+      }
+      .left-sidebar.collapsed .filter-clear-btn.visible {
+        display: inline-block;
+      }
+      .left-sidebar.collapsed .user-rename-form.open {
+        display: flex;
+      }
+      .left-sidebar.collapsed .sidebar-item,
+      .left-sidebar.collapsed .sidebar-help {
+        justify-content: flex-start;
+        padding: 0 8px;
+        width: auto;
+      }
+      .stats-pill {
+        max-width: calc(100% - 24px);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .canvas-controls {
+        height: auto;
+      }
+      .canvas-controls button,
+      .drawer-close {
+        min-width: 40px;
+        min-height: 40px;
+      }
+      .sidebar-item,
+      .board-item,
+      .btn,
+      .mini-btn {
+        min-height: 36px;
+      }
+    }
+    @media (max-width: 1024px) and (min-width: 641px) {
+      .right-drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 340px;
+        max-width: 85vw;
+        z-index: 40;
+        box-shadow: var(--shadow-modal);
+      }
+    }
+    @media (max-width: 640px) {
+      .brand-subtitle {
+        display: none;
+      }
+      .ws-status {
+        min-width: auto;
+        margin-right: 0;
+      }
+      .ws-labels {
+        display: none;
+      }
+      #account-chip {
+        max-width: 160px;
+      }
+      #account-email {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+      }
+      .app-header .btn {
+        padding: 0 10px;
+        font-size: 11px;
+        height: 36px;
+      }
+      .canvas-overlay-header {
+        left: 12px;
+        top: 10px;
+        right: 12px;
+      }
+      .stats-pill {
+        top: 52px;
+        left: 12px;
+        right: 12px;
+        max-width: none;
+        height: 34px;
+        padding: 0 12px;
+        gap: 12px;
+      }
+      .sim-pill {
+        bottom: 62px;
+        right: 12px;
+      }
+      .right-drawer {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        width: 100%;
+        max-height: 75vh;
+        z-index: 45;
+        border-left: none;
+        border-top: 1px solid var(--border-light);
+        border-radius: 14px 14px 0 0;
+        box-shadow: 0 -8px 30px rgba(16, 24, 40, 0.16);
+      }
+      .right-drawer-rail,
+      .right-drawer-rail.visible {
+        display: none;
+      }
+      .event-log-bar {
+        height: 76px;
+        min-height: 52px;
+      }
+      .event-log-header,
+      .event-log-body {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+      .event-log-header .event-log-sub {
+        display: none;
+      }
+      .event-log-body {
+        overflow-x: auto;
+      }
+      .modal-backdrop,
+      .auth-backdrop {
+        padding: 12px;
+      }
+      .modal-card,
+      .auth-card {
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .modal-body {
+        overflow-y: auto;
+      }
+      .auth-card {
+        overflow-y: auto;
+        padding: 16px;
+      }
+      #agent-key-name-input {
+        flex: 1;
+        min-width: 110px;
+        width: auto !important;
+      }
     }
   </style>
 </head>
@@ -1494,6 +1708,9 @@ Short CLI (if inside repo; save server once with `connect`):
   <!-- HEADER -->
   <header class="app-header">
     <div class="header-left">
+      <button class="btn mobile-menu-btn" id="btn-mobile-sidebar" type="button" aria-label="Toggle navigation sidebar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <div class="brand-group">
         <div class="logo-lockup">
           <img src="/assets/synapse-logo.svg" alt="SYNAPSE" width="1040" height="342">
@@ -1550,6 +1767,7 @@ Short CLI (if inside repo; save server once with `connect`):
 
   <!-- MAIN WORKSPACE -->
   <div class="main-layout">
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
     <!-- Left Sidebar -->
     <nav class="left-sidebar" id="left-sidebar" aria-label="Graph legend and filters">
       <div class="sidebar-section">
@@ -1909,9 +2127,9 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         </div>
 
         <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
             <strong>Friends &amp; Permissions</strong>
-            <div style="display:flex;gap:6px;align-items:center;">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
               <select class="field-select" id="invite-role-select" style="height:26px;font-size:11px;">
                 <option value="editor">Editor (Can edit graph)</option>
                 <option value="viewer">Viewer (Read-only)</option>
@@ -1924,9 +2142,9 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         </div>
 
         <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
             <strong>AI Agent &amp; MCP Keys (Valid Until Revoked)</strong>
-            <div style="display:flex;gap:6px;align-items:center;">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
               <input class="field-input" id="agent-key-name-input" type="text" placeholder="e.g. claude-code" style="height:26px;width:130px;font-size:11px;">
               <button class="mini-btn primary" id="btn-create-agent-key" type="button">Generate Key</button>
             </div>
@@ -1973,6 +2191,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     let didDragMove = false;
     let customPositions = {};
     let hasInitialFit = false;
+    const activePointers = new Map();
+    let pinchState = null;
 
     const svg = document.getElementById('dag-svg');
     const viewportG = document.getElementById('viewport-g');
@@ -1981,8 +2201,16 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     const particlesGroup = document.getElementById('particles-group');
     const eventStream = document.getElementById('event-stream');
     const leftSidebarEl = document.getElementById('left-sidebar');
+    const sidebarBackdropEl = document.getElementById('sidebar-backdrop');
+    const mobileSidebarBtnEl = document.getElementById('btn-mobile-sidebar');
     const drawerEl = document.getElementById('drawer');
     const drawerRailEl = document.getElementById('drawer-rail');
+
+    function setMobileSidebarOpen(open) {
+      leftSidebarEl.classList.toggle('mobile-open', open);
+      if (sidebarBackdropEl) sidebarBackdropEl.classList.toggle('open', open);
+      if (mobileSidebarBtnEl) mobileSidebarBtnEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
 
     // ===================== FALLBACK DATA =====================
     const initialFallbackData = {
@@ -2510,8 +2738,10 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         g.appendChild(metaText);
 
         // Interactions
-        g.addEventListener('mousedown', (e) => {
+        g.addEventListener('pointerdown', (e) => {
+          if (activePointers.size >= 1) return;
           e.stopPropagation();
+          activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
           didDragMove = false;
           draggingNodeId = node.id;
           nodeDragOffset = {
@@ -3200,6 +3430,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
 
     async function selectBoard(boardId) {
       if (!boardId || activeBoardId === boardId) return;
+      if (window.innerWidth <= 1024) setMobileSidebarOpen(false);
       activeBoardId = boardId;
       try { localStorage.setItem('synapse_active_board', boardId); } catch {}
       customPositions = {};
@@ -3528,8 +3759,13 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
             if (selectedNodeId && graphData.nodes.some(n => n.id === selectedNodeId)) {
               if (!drawerEl.classList.contains('collapsed')) selectNode(selectedNodeId);
             } else if (graphData.nodes.length > 0) {
-              const preferred = graphData.nodes.find(n => n.status === 'STALE_CONFLICT') || graphData.nodes.find(n => n.id === 'TSK-03') || graphData.nodes[0];
-              selectNode(preferred.id);
+              if (window.innerWidth <= 1024) {
+                selectedNodeId = null;
+                setDrawerCollapsed(true);
+              } else {
+                const preferred = graphData.nodes.find(n => n.status === 'STALE_CONFLICT') || graphData.nodes.find(n => n.id === 'TSK-03') || graphData.nodes[0];
+                selectNode(preferred.id);
+              }
             } else {
               selectedNodeId = null;
               setDrawerCollapsed(true);
@@ -3542,7 +3778,11 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
           renderDAG();
           fitGraph();
           hasInitialFit = true;
-          selectNode('TSK-03');
+          if (window.innerWidth <= 1024) {
+            setDrawerCollapsed(true);
+          } else {
+            selectNode('TSK-03');
+          }
         }
       }
     }
@@ -3589,15 +3829,53 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       updateTransform();
     }
 
-    svg.addEventListener('mousedown', (e) => {
-      if (e.target === svg || e.target.tagName === 'path' || e.target.id === 'dag-svg') {
+    function getPinchMetrics() {
+      const pts = Array.from(activePointers.values());
+      if (pts.length < 2) return null;
+      const dx = pts[1].x - pts[0].x;
+      const dy = pts[1].y - pts[0].y;
+      const rect = svg.getBoundingClientRect();
+      return {
+        dist: Math.max(1, Math.hypot(dx, dy)),
+        midX: (pts[0].x + pts[1].x) / 2 - rect.left,
+        midY: (pts[0].y + pts[1].y) / 2 - rect.top
+      };
+    }
+
+    svg.addEventListener('pointerdown', (e) => {
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (activePointers.size === 2) {
+        isDraggingCanvas = false;
+        draggingNodeId = null;
+        svg.classList.remove('grabbing');
+        const m = getPinchMetrics();
+        if (m) {
+          pinchState = { dist: m.dist, midX: m.midX, midY: m.midY, zoom, panX: pan.x, panY: pan.y };
+        }
+        return;
+      }
+      if (activePointers.size === 1 && (e.target === svg || e.target.tagName === 'path' || e.target.id === 'dag-svg')) {
         isDraggingCanvas = true;
         svg.classList.add('grabbing');
         dragStart = { x: e.clientX - pan.x, y: e.clientY - pan.y };
       }
     });
 
-    window.addEventListener('mousemove', (e) => {
+    window.addEventListener('pointermove', (e) => {
+      if (activePointers.has(e.pointerId)) {
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+      if (activePointers.size === 2 && pinchState) {
+        const m = getPinchMetrics();
+        if (m) {
+          const nextZoom = Math.min(2.4, Math.max(0.35, pinchState.zoom * (m.dist / pinchState.dist)));
+          pan.x = m.midX - ((pinchState.midX - pinchState.panX) / pinchState.zoom) * nextZoom;
+          pan.y = m.midY - ((pinchState.midY - pinchState.panY) / pinchState.zoom) * nextZoom;
+          zoom = nextZoom;
+          updateTransform();
+        }
+        return;
+      }
       if (draggingNodeId) {
         didDragMove = true;
         const newX = (e.clientX - pan.x) / zoom - nodeDragOffset.x;
@@ -3613,11 +3891,17 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       }
     });
 
-    window.addEventListener('mouseup', () => {
-      isDraggingCanvas = false;
-      draggingNodeId = null;
-      svg.classList.remove('grabbing');
-    });
+    function clearPointer(e) {
+      activePointers.delete(e.pointerId);
+      if (activePointers.size < 2) pinchState = null;
+      if (activePointers.size === 0) {
+        isDraggingCanvas = false;
+        draggingNodeId = null;
+        svg.classList.remove('grabbing');
+      }
+    }
+    window.addEventListener('pointerup', clearPointer);
+    window.addEventListener('pointercancel', clearPointer);
 
     svg.addEventListener('wheel', (e) => {
       e.preventDefault();
@@ -3714,6 +3998,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         }
         updateFilterUI();
         renderDAG();
+        if (window.innerWidth <= 1024) setMobileSidebarOpen(false);
       });
     });
 
@@ -3721,6 +4006,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       activeFilter = null;
       updateFilterUI();
       renderDAG();
+      if (window.innerWidth <= 1024) setMobileSidebarOpen(false);
     };
 
     // ===================== DYNAMIC SAFE BLAST SIMULATION =====================
@@ -3783,7 +4069,20 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     document.getElementById('btn-sim-restore').onclick = () => fetchGraphState();
 
     // ===================== SIDEBARS, DRAWER & HELP MODAL =====================
+    if (mobileSidebarBtnEl) {
+      mobileSidebarBtnEl.onclick = () => {
+        setMobileSidebarOpen(!leftSidebarEl.classList.contains('mobile-open'));
+      };
+    }
+    if (sidebarBackdropEl) {
+      sidebarBackdropEl.onclick = () => setMobileSidebarOpen(false);
+    }
+
     document.getElementById('btn-toggle-left-sidebar').onclick = () => {
+      if (window.innerWidth <= 1024) {
+        setMobileSidebarOpen(false);
+        return;
+      }
       const collapsed = leftSidebarEl.classList.toggle('collapsed');
       const btn = document.getElementById('btn-toggle-left-sidebar');
       const icon = document.getElementById('icon-left-sidebar-toggle');
@@ -3816,7 +4115,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     let eventLogResizeStartY = 0;
     let eventLogResizeStartH = 100;
 
-    eventLogResizerEl.addEventListener('mousedown', (e) => {
+    eventLogResizerEl.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       isResizingEventLog = true;
       eventLogResizeStartY = e.clientY;
@@ -3833,14 +4132,14 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       }
     });
 
-    window.addEventListener('mousemove', (e) => {
+    window.addEventListener('pointermove', (e) => {
       if (!isResizingEventLog) return;
       const maxH = Math.max(160, Math.round(window.innerHeight * 0.58));
       const nextH = Math.max(64, Math.min(maxH, Math.round(eventLogResizeStartH + (eventLogResizeStartY - e.clientY))));
       eventLogBarEl.style.height = `${nextH}px`;
     });
 
-    window.addEventListener('mouseup', () => {
+    function stopEventLogResize() {
       if (!isResizingEventLog) return;
       isResizingEventLog = false;
       eventLogResizerEl.classList.remove('dragging');
@@ -3849,7 +4148,9 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       if (graphData.nodes.length && !Object.keys(customPositions).length) {
         requestAnimationFrame(() => fitGraph());
       }
-    });
+    }
+    window.addEventListener('pointerup', stopEventLogResize);
+    window.addEventListener('pointercancel', stopEventLogResize);
 
     const helpModal = document.getElementById('help-modal');
     document.getElementById('btn-help').onclick = () => helpModal.classList.add('open');
