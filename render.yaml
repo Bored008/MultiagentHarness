@@ -7,3 +7,11 @@ services:
     envVars:
       - key: OMNIHARNESS_DB_PATH
         value: /app/data/omniharness.db
+      - key: OMNIHARNESS_AUTH_ENABLED
+        value: "true"
+      - key: SUPABASE_URL
+        value: https://zxycpgztcttumhhazadf.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_Ayj649eKgOO3-sLj94OuPg_e2Yyd5v4
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

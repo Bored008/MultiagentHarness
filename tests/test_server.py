@@ -26,6 +26,12 @@ from harness.store import EventStore
 from harness.graph import DAGManager
 
 
+@pytest.fixture(autouse=True)
+def _disable_auth_for_legacy_dag_tests(monkeypatch):
+    """Keep legacy single-board DAG integration tests focused on graph mechanics without tokens."""
+    monkeypatch.setenv("OMNIHARNESS_AUTH_ENABLED", "false")
+
+
 @pytest.fixture
 def temp_db():
     fd, path = tempfile.mkstemp(suffix=".db")

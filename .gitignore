@@ -22,8 +22,11 @@ ENV/
 htmlcov/
 *.log
 
-# OmniHarness local profile
+# OmniHarness local profile & secrets
 .omniharness.json
+.env
+.env.local
+.env.*.local
 
 
 # Node / Frontend

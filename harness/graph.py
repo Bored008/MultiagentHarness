@@ -1,8 +1,8 @@
 """
-In-Memory NetworkX DAG Manager and Blast-Radius Invalidation Engine for OmniHarness.
+In-Memory NetworkX DAG Manager, Board Registry, and Blast-Radius Invalidation Engine for OmniHarness.
 Provides real-time dependency resolution, cycle prevention, atomic downstream
 blast-radius invalidation, scoped subgraph extraction, conflict resolution,
-and crash recovery hydration from SQLite EventStore.
+and crash recovery hydration from EventStore / SupabaseRestStore.
 """
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ from harness.models import (
     SubgraphResponse,
     WorkspaceUser,
 )
-from harness.store import EventStore
 
 logger = logging.getLogger("omniharness.graph")
 
@@ -51,22 +50,22 @@ class TaskConflictError(GraphError):
 
 class DAGManager:
     """
-    Thread-safe in-memory DAG manager backed by NetworkX and SQLite EventStore.
-    Wraps networkx.DiGraph for instant dependency traversal, cycle rejection,
-    and blast-radius invalidation.
+    Thread-safe in-memory DAG manager backed by NetworkX and EventStore/SupabaseRestStore.
+    Scoped to a single `board_id` (defaults to `"default"` for legacy compatibility).
     """
 
-    def __init__(self, store: Optional[EventStore] = None):
+    def __init__(self, store: Optional[Any] = None, board_id: str = "default"):
         self.store = store
+        self.board_id = board_id
         self.graph: nx.DiGraph = nx.DiGraph()
         self._nodes: Dict[str, Node] = {}
         self._lock = threading.RLock()
         if self.store is not None:
             self.build_from_store(self.store)
 
-    def build_from_store(self, store: EventStore) -> None:
+    def build_from_store(self, store: Any) -> None:
         """
-        Reconstruct in-memory DAG from SQLite store nodes and edges.
+        Reconstruct in-memory DAG from store nodes and edges for `self.board_id`.
         Asserts acyclicity of the persisted graph.
         """
         with self._lock:
@@ -74,12 +73,12 @@ class DAGManager:
             self.graph.clear()
             self._nodes.clear()
 
-            nodes = store.list_nodes()
+            nodes = store.list_nodes(board_id=self.board_id)
             for node in nodes:
                 self._nodes[node.id] = node
                 self.graph.add_node(node.id, data=node)
 
-            edges = store.list_edges()
+            edges = store.list_edges(board_id=self.board_id)
             for edge in edges:
                 self.graph.add_edge(edge.source, edge.target, relation=edge.relation)
 
@@ -87,7 +86,12 @@ class DAGManager:
                 cycles = list(nx.simple_cycles(self.graph))
                 raise CycleError(f"Database contains cyclic dependencies: {cycles}")
 
-            logger.info("Hydrated %d nodes and %d edges from store", len(nodes), len(edges))
+            logger.info(
+                "Hydrated %d nodes and %d edges for board '%s'",
+                len(nodes),
+                len(edges),
+                self.board_id,
+            )
 
     def hydrate_from_store(self) -> None:
         """Alias for build_from_store using existing store."""
@@ -95,14 +99,13 @@ class DAGManager:
             self.build_from_store(self.store)
 
     def reset(self) -> None:
-        """Clear store and all in-memory graph state."""
+        """Clear store and all in-memory graph state for this board."""
         with self._lock:
             if self.store is not None:
-                self.store.clear()
+                self.store.clear(board_id=self.board_id)
             self.graph.clear()
             self._nodes.clear()
-            logger.info("DAGManager graph and store reset to empty state.")
-
+            logger.info("DAGManager graph and store reset for board '%s'.", self.board_id)
 
     def get_node(self, node_id: Any) -> Optional[Node]:
         """Fetch node by ID from in-memory index, falling back to store."""
@@ -112,7 +115,7 @@ class DAGManager:
             if node_id in self._nodes:
                 return self._nodes[node_id]
             if self.store is not None:
-                node = self.store.get_node(str(node_id))
+                node = self.store.get_node(str(node_id), board_id=self.board_id)
                 if node is not None:
                     self._nodes[node.id] = node
                     self.graph.add_node(node.id, data=node)
@@ -135,7 +138,14 @@ class DAGManager:
         with self._lock:
             edges: List[Edge] = []
             for u, v, data in self.graph.edges(data=True):
-                edges.append(Edge(source=u, target=v, relation=data.get("relation", "relies_on")))
+                edges.append(
+                    Edge(
+                        source=u,
+                        target=v,
+                        relation=data.get("relation", "relies_on"),
+                        board_id=self.board_id,
+                    )
+                )
             return edges
 
     def add_node(
@@ -148,32 +158,30 @@ class DAGManager:
         """
         Add a node and its incoming dependency edges (dependency -> node).
         Validates dependencies and rejects cycles (raises ValueError / CycleError).
-        Synchronizes with SQLite store if attached.
+        Synchronizes with store if attached.
         """
         with self._lock:
             if self.store and idempotency_key:
-                existing = self.store.check_idempotency(idempotency_key)
+                existing = self.store.check_idempotency(idempotency_key, board_id=self.board_id)
                 if existing:
                     return self.get_node(node.id) or node
 
+            node.board_id = self.board_id
             deps = list(dict.fromkeys(dependencies or []))
 
-            # 1. Check for self-loops
             for dep_id in deps:
                 if dep_id == node.id:
                     raise CycleError(f"Self-loop detected: node '{node.id}' cannot depend on itself.")
 
-            # 2. Verify dependencies exist (load from store if not in memory)
             for dep_id in deps:
                 if dep_id not in self._nodes and self.store is not None:
-                    stored_node = self.store.get_node(dep_id)
+                    stored_node = self.store.get_node(dep_id, board_id=self.board_id)
                     if stored_node is not None:
                         self._nodes[stored_node.id] = stored_node
                         self.graph.add_node(stored_node.id, data=stored_node)
                 if dep_id not in self._nodes:
                     raise NodeNotFoundError(f"Dependency node '{dep_id}' not found.")
 
-            # 3. Check for cycles: if path exists from node.id to dep_id, edge creates cycle
             if self.graph.has_node(node.id):
                 for dep_id in deps:
                     if nx.has_path(self.graph, node.id, dep_id):
@@ -183,17 +191,20 @@ class DAGManager:
                             f"{' -> '.join(cycle_path)}"
                         )
 
-            # 4. Apply to in-memory graph
             self._nodes[node.id] = node
             self.graph.add_node(node.id, data=node)
             for dep_id in deps:
                 self.graph.add_edge(dep_id, node.id, relation="relies_on")
 
-            # 5. Persist to SQLite store
             if self.store is not None:
-                self.store.upsert_node(node)
+                self.store.upsert_node(node, board_id=self.board_id)
                 for dep_id in deps:
-                    self.store.add_edge(source=dep_id, target=node.id, relation="relies_on")
+                    self.store.add_edge(
+                        source=dep_id,
+                        target=node.id,
+                        relation="relies_on",
+                        board_id=self.board_id,
+                    )
                 self.store.record_event(
                     event_type="NODE_CREATED",
                     node_id=node.id,
@@ -204,6 +215,7 @@ class DAGManager:
                         "dependencies": deps,
                     },
                     idempotency_key=idempotency_key,
+                    board_id=self.board_id,
                 )
 
             return node
@@ -222,9 +234,8 @@ class DAGManager:
                 raise CycleError(f"Self-loop detected: node '{source}' cannot depend on itself.")
 
             if self.graph.has_edge(source, target):
-                return Edge(source=source, target=target, relation=relation)
+                return Edge(source=source, target=target, relation=relation, board_id=self.board_id)
 
-            # Cycle detection: path from target to source means adding source -> target creates cycle
             if nx.has_path(self.graph, target, source):
                 cycle_path = nx.shortest_path(self.graph, target, source) + [target]
                 raise CycleError(
@@ -234,18 +245,15 @@ class DAGManager:
 
             self.graph.add_edge(source, target, relation=relation)
             if self.store is not None:
-                self.store.add_edge(source=source, target=target, relation=relation)
-            return Edge(source=source, target=target, relation=relation)
+                self.store.add_edge(source=source, target=target, relation=relation, board_id=self.board_id)
+            return Edge(source=source, target=target, relation=relation, board_id=self.board_id)
 
     def add_edge(self, source: str, target: str, relation: str = "relies_on") -> Edge:
         """Alias for add_dependency."""
         return self.add_dependency(source=source, target=target, relation=relation)
 
     def get_downstream_dependents(self, node_id: str) -> List[str]:
-        """
-        Return all descendant node IDs reachable from node_id (blast radius),
-        ordered in topological sort order.
-        """
+        """Return all descendant node IDs reachable from node_id in topological sort order."""
         with self._lock:
             if node_id not in self._nodes:
                 raise NodeNotFoundError(f"Node '{node_id}' not found.")
@@ -273,9 +281,7 @@ class DAGManager:
             return nx.ancestors(self.graph, node_id)
 
     def get_upstream_dependencies(self, node_id: str) -> List[str]:
-        """
-        Return all ancestor node IDs that node_id depends on, ordered topologically.
-        """
+        """Return all ancestor node IDs that node_id depends on, ordered topologically."""
         with self._lock:
             if node_id not in self._nodes:
                 raise NodeNotFoundError(f"Node '{node_id}' not found.")
@@ -294,11 +300,7 @@ class DAGManager:
         reason: str,
         actor: str = "system",
     ) -> List[Node]:
-        """
-        Mark downstream tasks and dependents STALE_CONFLICT, update payload
-        with conflict info, record event in store, upsert in store.
-        Returns list of invalidated Node objects.
-        """
+        """Mark downstream dependents STALE_CONFLICT and persist conflict events."""
         with self._lock:
             if node_id not in self._nodes:
                 raise NodeNotFoundError(f"Node '{node_id}' not found.")
@@ -332,7 +334,7 @@ class DAGManager:
                 }
 
                 if self.store is not None:
-                    self.store.upsert_node(target_node)
+                    self.store.upsert_node(target_node, board_id=self.board_id)
                     self.store.record_event(
                         event_type="CONFLICT_DETECTED",
                         node_id=dep_id,
@@ -344,6 +346,7 @@ class DAGManager:
                             "reason": reason,
                             "version": target_node.version,
                         },
+                        board_id=self.board_id,
                     )
 
                 self.graph.nodes[dep_id]["data"] = target_node
@@ -371,17 +374,13 @@ class DAGManager:
         max_depth: Optional[int] = None,
         max_tokens: int = 1500,
     ) -> SubgraphResponse:
-        """
-        Extract scoped context containing target task, ordered ancestors,
-        induced edges, and staleness/conflict details (~1.5k tokens).
-        """
+        """Extract scoped context containing target task, ordered ancestors, and induced edges."""
         with self._lock:
             task = self.get_node(task_id)
             if not task:
                 raise NodeNotFoundError(f"Task '{task_id}' not found.")
 
             ancestor_ids = nx.ancestors(self.graph, task_id)
-            # Rank ancestors by shortest path distance to target task
             ancestors_with_dist = [
                 (nx.shortest_path_length(self.graph, a, task_id), a)
                 for a in ancestor_ids
@@ -393,7 +392,6 @@ class DAGManager:
             is_stale = (task.status == NodeStatus.STALE_CONFLICT) or bool(task.payload.get("is_stale", False))
             conflict_details = task.payload.get("conflict_reason") or task.payload.get("stale_reason")
 
-            # Token budgeting: estimate ~250 tokens per ancestor, ~300 base tokens
             budget_ancestors = max(1, (max_tokens - 300) // 250) if max_tokens > 300 else 1
 
             for dist, a_id in ancestors_with_dist:
@@ -413,10 +411,14 @@ class DAGManager:
                             f"Ancestor '{a_id}' has conflict: {anc_reason or 'specification changed'}"
                         )
 
-            # Induced subgraph edges
             induced = self.graph.subgraph(selected_ids)
             subgraph_edges = [
-                Edge(source=u, target=v, relation=data.get("relation", "relies_on"))
+                Edge(
+                    source=u,
+                    target=v,
+                    relation=data.get("relation", "relies_on"),
+                    board_id=self.board_id,
+                )
                 for u, v, data in induced.edges(data=True)
             ]
 
@@ -444,17 +446,14 @@ class DAGManager:
         actor: str,
         idempotency_key: Optional[str] = None,
     ) -> Node:
-        """
-        Resolve a conflict on a task: clear stale state, update payload with
-        new_output, increment version, set status to COMPLETED, and record in store.
-        """
+        """Clear stale state on a task, update output, increment version, and record event."""
         with self._lock:
             task = self.get_node(task_id)
             if not task:
                 raise NodeNotFoundError(f"Task '{task_id}' not found.")
 
             if self.store and idempotency_key:
-                existing = self.store.check_idempotency(idempotency_key)
+                existing = self.store.check_idempotency(idempotency_key, board_id=self.board_id)
                 if existing:
                     return task
 
@@ -463,26 +462,25 @@ class DAGManager:
             task.version += 1
             task.updated_at = now
 
-            # Clear stale and conflict flags
             task.payload.pop("is_stale", None)
             task.payload.pop("stale_reason", None)
             task.payload.pop("conflict_reason", None)
             task.payload.pop("conflict", None)
             task.payload.pop("invalidated_by", None)
 
-            # Attach resolved output and audit info
             task.payload["output"] = new_output
             task.payload["resolved_by"] = actor
             task.payload["resolved_at"] = now
 
             if self.store is not None:
-                self.store.upsert_node(task)
+                self.store.upsert_node(task, board_id=self.board_id)
                 self.store.record_event(
                     event_type="CONFLICT_RESOLVED",
                     node_id=task_id,
                     actor=actor,
                     data={"version": task.version, "output": new_output},
                     idempotency_key=idempotency_key,
+                    board_id=self.board_id,
                 )
 
             self.graph.nodes[task_id]["data"] = task
@@ -495,18 +493,14 @@ class DAGManager:
         tool_name: str = "generic_tool",
         idempotency_key: Optional[str] = None,
     ) -> Node:
-        """
-        Claim a pending task for an agent atomically, leasing it in IN_PROGRESS.
-        Rejects already claimed or completed tasks with TaskConflictError.
-        Idempotent replay by the same agent returns the node.
-        """
+        """Claim a pending task atomically, leasing it in IN_PROGRESS."""
         with self._lock:
             node = self.get_node(task_id)
             if not node:
                 raise NodeNotFoundError(f"Task '{task_id}' not found.")
 
             if self.store and idempotency_key:
-                existing = self.store.check_idempotency(idempotency_key)
+                existing = self.store.check_idempotency(idempotency_key, board_id=self.board_id)
                 if existing:
                     return node
 
@@ -526,13 +520,14 @@ class DAGManager:
             node.updated_at = time.time()
 
             if self.store is not None:
-                self.store.upsert_node(node)
+                self.store.upsert_node(node, board_id=self.board_id)
                 self.store.record_event(
                     event_type="TASK_CLAIMED",
                     node_id=task_id,
                     actor=agent_id,
                     data={"assigned_to": assigned_identifier, "tool_name": tool_name},
                     idempotency_key=idempotency_key,
+                    board_id=self.board_id,
                 )
 
             self.graph.nodes[task_id]["data"] = node
@@ -545,17 +540,14 @@ class DAGManager:
         output: Dict[str, Any],
         idempotency_key: Optional[str] = None,
     ) -> Node:
-        """
-        Submit output for a claimed task and mark it COMPLETED.
-        Rejects tasks in STALE_CONFLICT state with TaskConflictError.
-        """
+        """Submit output for a claimed task and mark it COMPLETED."""
         with self._lock:
             node = self.get_node(task_id)
             if not node:
                 raise NodeNotFoundError(f"Task '{task_id}' not found.")
 
             if self.store and idempotency_key:
-                existing = self.store.check_idempotency(idempotency_key)
+                existing = self.store.check_idempotency(idempotency_key, board_id=self.board_id)
                 if existing:
                     return node
 
@@ -583,13 +575,14 @@ class DAGManager:
             node.updated_at = time.time()
 
             if self.store is not None:
-                self.store.upsert_node(node)
+                self.store.upsert_node(node, board_id=self.board_id)
                 self.store.record_event(
                     event_type="TASK_SUBMITTED",
                     node_id=task_id,
                     actor=agent_id,
                     data={"output": output, "version": node.version},
                     idempotency_key=idempotency_key,
+                    board_id=self.board_id,
                 )
 
             self.graph.nodes[task_id]["data"] = node
@@ -602,18 +595,14 @@ class DAGManager:
         actor: str = "system",
         idempotency_key: Optional[str] = None,
     ) -> Tuple[Node, List[str]]:
-        """
-        Update a requirement specification, bump version, persist event,
-        and trigger downstream blast-radius invalidation.
-        Returns (updated_requirement_node, list_of_invalidated_node_ids).
-        """
+        """Update a requirement specification and trigger downstream blast-radius invalidation."""
         with self._lock:
             req_node = self.get_node(req_id)
             if not req_node:
                 raise NodeNotFoundError(f"Requirement node '{req_id}' not found.")
 
             if self.store and idempotency_key:
-                existing = self.store.check_idempotency(idempotency_key)
+                existing = self.store.check_idempotency(idempotency_key, board_id=self.board_id)
                 if existing:
                     return req_node, []
 
@@ -622,13 +611,14 @@ class DAGManager:
             req_node.updated_at = time.time()
 
             if self.store is not None:
-                self.store.upsert_node(req_node)
+                self.store.upsert_node(req_node, board_id=self.board_id)
                 self.store.record_event(
                     event_type="REQUIREMENT_UPDATED",
                     node_id=req_id,
                     actor=actor,
                     data={"new_spec": new_spec, "version": req_node.version},
                     idempotency_key=idempotency_key,
+                    board_id=self.board_id,
                 )
 
             invalidated = self.invalidate_subtree(
@@ -639,9 +629,7 @@ class DAGManager:
             return req_node, [n.id for n in invalidated]
 
     def get_ready_tasks(self) -> List[Node]:
-        """
-        Return all TASK nodes that are PENDING and all whose predecessors are COMPLETED.
-        """
+        """Return all TASK nodes that are PENDING and all whose predecessors are COMPLETED."""
         with self._lock:
             ready: List[Node] = []
             for node in self._nodes.values():
@@ -666,7 +654,7 @@ class DAGManager:
         """Return workspace users enriched with active and completed task IDs from the DAG."""
         with self._lock:
             nodes = list(self._nodes.values())
-            users = self.store.list_workspace_users() if self.store is not None else []
+            users = self.store.list_workspace_users(board_id=self.board_id) if self.store is not None else []
             enriched: List[WorkspaceUser] = []
             for user in users:
                 active_tasks = [
@@ -711,25 +699,23 @@ class DAGManager:
                 edges=edges,
                 stats=stats,
                 users=self.list_workspace_users(),
+                board_id=self.board_id,
             )
 
     def export_snapshot(self) -> GraphSnapshot:
         """Export full DAG state and event history as a GraphSnapshot."""
         with self._lock:
             if self.store is not None:
-                return self.store.export_snapshot()
+                return self.store.export_snapshot(board_id=self.board_id)
             return GraphSnapshot(
+                board_id=self.board_id,
                 nodes=self.list_nodes(),
                 edges=self.list_edges(),
                 events=[],
             )
 
     def import_snapshot(self, snapshot: GraphSnapshot, replace: bool = True) -> Dict[str, int]:
-        """
-        Validate and import a GraphSnapshot into the DAG and backing EventStore.
-        Rejects dangling edges (NodeNotFoundError) and cycles (CycleError)
-        before mutating any in-memory or persisted state.
-        """
+        """Validate and import a GraphSnapshot into the DAG and backing store."""
         with self._lock:
             candidate = nx.DiGraph() if replace else self.graph.copy()
             candidate_ids: Set[str] = set() if replace else set(self._nodes.keys())
@@ -758,6 +744,7 @@ class DAGManager:
                     events=snapshot.events,
                     replace=replace,
                     users=snapshot.users,
+                    board_id=self.board_id,
                 )
                 self.hydrate_from_store()
             else:
@@ -778,3 +765,29 @@ class DAGManager:
                 "total_nodes": len(self._nodes),
                 "total_edges": self.graph.number_of_edges(),
             }
+
+
+class BoardDAGRegistry:
+    """
+    Thread-safe registry managing isolated DAGManager instances per board_id.
+    Eliminates cross-board shared state by giving each Knowledge Board its own DAG.
+    """
+
+    def __init__(self, store: Any, default_dag: Optional[DAGManager] = None):
+        self.store = store
+        self._lock = threading.RLock()
+        self._dags: Dict[str, DAGManager] = {}
+        if default_dag is not None:
+            self._dags[default_dag.board_id] = default_dag
+
+    def get_dag(self, board_id: str = "default") -> DAGManager:
+        with self._lock:
+            dag = self._dags.get(board_id)
+            if dag is None:
+                dag = DAGManager(store=self.store, board_id=board_id)
+                self._dags[board_id] = dag
+            return dag
+
+    def remove_dag(self, board_id: str) -> None:
+        with self._lock:
+            self._dags.pop(board_id, None)

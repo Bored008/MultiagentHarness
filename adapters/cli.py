@@ -40,7 +40,7 @@ def load_saved_profile() -> Dict[str, Any]:
     home_data = _load_json_dict(Path.home() / PROFILE_FILENAME)
     cwd_data = _load_json_dict(Path.cwd() / PROFILE_FILENAME)
     for source in (home_data, cwd_data):
-        for key in ("server", "agent_id"):
+        for key in ("server", "agent_id", "api_key", "board_id"):
             val = source.get(key)
             if isinstance(val, str) and val.strip():
                 profile[key] = val.strip()
@@ -51,14 +51,42 @@ def save_cli_profile(
     server_url: str,
     agent_id: str,
     global_scope: bool = False,
+    api_key: Optional[str] = None,
+    board_id: Optional[str] = None,
 ) -> Path:
-    """Persist {server, agent_id} into .omniharness.json (CWD or ~/.omniharness.json)."""
+    """Persist {server, agent_id, api_key?, board_id?} into .omniharness.json."""
     target = (Path.home() / PROFILE_FILENAME) if global_scope else (Path.cwd() / PROFILE_FILENAME)
     existing = _load_json_dict(target)
     existing["server"] = server_url.strip().rstrip("/")
     existing["agent_id"] = agent_id.strip()
+    if api_key and api_key.strip():
+        existing["api_key"] = api_key.strip()
+    if board_id and board_id.strip():
+        existing["board_id"] = board_id.strip()
     target.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
     return target
+
+
+def resolve_cli_auth(
+    cli_api_key: Optional[str],
+    cli_board_id: Optional[str],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Resolve (api_key, board_id) from CLI flags, env vars, or saved profile."""
+    saved = load_saved_profile()
+    env_key = os.environ.get("OMNIHARNESS_API_KEY", "").strip()
+    env_board = os.environ.get("OMNIHARNESS_BOARD_ID", "").strip()
+
+    api_key = (
+        (cli_api_key.strip() if isinstance(cli_api_key, str) and cli_api_key.strip() else None)
+        or (env_key or None)
+        or saved.get("api_key")
+    )
+    board_id = (
+        (cli_board_id.strip() if isinstance(cli_board_id, str) and cli_board_id.strip() else None)
+        or (env_board or None)
+        or saved.get("board_id")
+    )
+    return api_key, board_id
 
 
 def resolve_cli_config(
@@ -198,6 +226,16 @@ def _add_common_flags(target: argparse.ArgumentParser, default_agent_id: str, su
         "--agent-id",
         default=unset,
         help=f"Agent identifier for logging and lease ownership (env: OMNIHARNESS_AGENT_ID, default: {default_agent_id})",
+    )
+    target.add_argument(
+        "--api-key",
+        default=unset,
+        help="Board Agent Key (omni_...) or Bearer token (env: OMNIHARNESS_API_KEY)",
+    )
+    target.add_argument(
+        "--board-id",
+        default=unset,
+        help="Target Knowledge Board ID (env: OMNIHARNESS_BOARD_ID)",
     )
     target.add_argument(
         "--json",
@@ -481,6 +519,10 @@ def run_adapter_cli(
         cli_agent_id=getattr(args, "agent_id", None),
         default_agent_id=default_agent_id,
     )
+    resolved_api_key, resolved_board_id = resolve_cli_auth(
+        cli_api_key=getattr(args, "api_key", None),
+        cli_board_id=getattr(args, "board_id", None),
+    )
     if args.command == "connect":
         resolved_server = args.server_url.strip().rstrip("/")
 
@@ -489,6 +531,8 @@ def run_adapter_cli(
         server_url=resolved_server,
         ws_url=getattr(args, "ws_url", None),
     )
+    if (resolved_api_key or resolved_board_id) and hasattr(adapter, "set_auth"):
+        adapter.set_auth(api_key=resolved_api_key, board_id=resolved_board_id)
 
     try:
         if args.command == "connect":
@@ -496,6 +540,8 @@ def run_adapter_cli(
                 server_url=resolved_server,
                 agent_id=resolved_agent_id,
                 global_scope=bool(getattr(args, "global_config", False)),
+                api_key=resolved_api_key,
+                board_id=resolved_board_id,
             )
             health_data: Optional[Dict[str, Any]] = None
             health_error: Optional[str] = None

@@ -30,6 +30,7 @@ RESERVED_SLUGS: Set[str] = {
     "rese",
     "requ",
     "seed",
+    "mcp",
 }
 
 IGNORED_PROJECT_DIRS: Set[str] = {

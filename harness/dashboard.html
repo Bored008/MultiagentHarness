@@ -362,14 +362,15 @@ Short CLI (if inside repo; save server once with `connect`):
 
     /* Left Sidebar */
     .left-sidebar {
-      width: 176px;
+      width: 224px;
       background: var(--bg-surface);
       border-right: 1px solid var(--border-light);
       display: flex;
       flex-direction: column;
-      padding: 16px;
-      gap: 24px;
+      padding: 14px;
+      gap: 16px;
       flex-shrink: 0;
+      overflow-y: auto;
       transition: width 0.18s ease, padding 0.18s ease;
     }
 
@@ -395,7 +396,10 @@ Short CLI (if inside repo; save server once with `connect`):
     .left-sidebar.collapsed .sidebar-help > span,
     .left-sidebar.collapsed .filter-clear-btn,
     .left-sidebar.collapsed .sidebar-user-empty,
-    .left-sidebar.collapsed .user-rename-form {
+    .left-sidebar.collapsed .user-rename-form,
+    .left-sidebar.collapsed .boards-group-label,
+    .left-sidebar.collapsed .board-item-meta,
+    .left-sidebar.collapsed .board-quick-actions {
       display: none;
     }
 
@@ -1252,7 +1256,206 @@ Short CLI (if inside repo; save server once with `connect`):
       line-height: 17px;
       color: var(--text-primary);
       white-space: pre-wrap;
+      word-break: break-all;
     }
+
+    /* ---- Boards Switcher, Auth Gate & Team/MCP Modal ---- */
+    .boards-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 210px;
+      overflow-y: auto;
+    }
+    .boards-group-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--text-muted);
+      padding: 4px 6px 2px;
+    }
+    .board-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-primary);
+      transition: background 0.12s;
+    }
+    .board-item:hover { background: var(--bg-surface-alt); }
+    .board-item.active {
+      background: var(--accent-blue-bg);
+      color: var(--accent-blue);
+      font-weight: 600;
+      box-shadow: inset 0 0 0 1px #cfe0f9;
+    }
+    .board-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .board-dot.building { background: var(--accent-amber); }
+    .board-dot.built { background: var(--accent-green); }
+    .board-item-title {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .board-item-meta {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      background: var(--bg-surface-alt);
+      padding: 1px 5px;
+      border-radius: 999px;
+    }
+    .board-quick-actions {
+      display: flex;
+      gap: 4px;
+      margin-top: 2px;
+    }
+    .mini-btn {
+      border: 1px solid var(--border-light);
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 7px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .mini-btn:hover { background: var(--bg-surface-alt); color: var(--text-primary); }
+    .mini-btn.danger { color: var(--accent-red); border-color: #f3c4c4; }
+    .mini-btn.danger:hover { background: var(--accent-red-bg); }
+    .mini-btn.primary { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+
+    .account-chip {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 10px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface-alt);
+      border: 1px solid var(--border-light);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .account-chip.visible { display: inline-flex; }
+
+    .auth-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .auth-backdrop.open { display: flex; }
+    .auth-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      box-shadow: var(--shadow-modal);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .auth-tabs {
+      display: flex;
+      gap: 6px;
+      background: var(--bg-surface-alt);
+      padding: 4px;
+      border-radius: var(--radius-md);
+    }
+    .auth-tab {
+      flex: 1;
+      height: 30px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .auth-tab.active {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+    }
+    .field-label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+    .field-input, .field-select {
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--text-primary);
+      background: var(--bg-surface);
+    }
+    .auth-error {
+      display: none;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-red-bg);
+      color: var(--accent-red);
+      font-size: 11px;
+    }
+    .auth-error.visible { display: block; }
+    .auth-info {
+      display: none;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-green-bg);
+      color: var(--accent-green);
+      font-size: 11px;
+    }
+    .auth-info.visible { display: block; }
+
+    .access-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface-alt);
+      font-size: 11px;
+    }
+    .access-row-main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .access-row-title { font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .access-row-sub { font-size: 10px; color: var(--text-tertiary); }
+    .access-list { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
 
     @media (max-width: 1260px) {
       .stats-pill {
@@ -1317,6 +1520,16 @@ Short CLI (if inside repo; save server once with `connect`):
         </div>
       </div>
 
+      <div class="account-chip" id="account-chip">
+        <span id="account-email">Signed in</span>
+        <button class="mini-btn" id="btn-logout" type="button">Sign out</button>
+      </div>
+
+      <button class="btn" id="btn-board-access" type="button" title="Manage friends, permissions, and Synapse MCP agent keys">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Team &amp; MCP
+      </button>
+
       <button class="btn" id="btn-refresh" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
@@ -1339,6 +1552,19 @@ Short CLI (if inside repo; save server once with `connect`):
   <div class="main-layout">
     <!-- Left Sidebar -->
     <nav class="left-sidebar" id="left-sidebar" aria-label="Graph legend and filters">
+      <div class="sidebar-section">
+        <div class="sidebar-header-row">
+          <div class="sidebar-title">Boards <span class="sidebar-count" id="boards-count">0</span></div>
+          <div class="board-quick-actions">
+            <button class="mini-btn" id="btn-new-board" type="button" title="Create a new Knowledge Board">+ New</button>
+            <button class="mini-btn" id="btn-join-board" type="button" title="Join a friend's board with an invite code">Join</button>
+          </div>
+        </div>
+        <div class="boards-list" id="sidebar-boards-list">
+          <div class="sidebar-user-empty">Sign in to view boards</div>
+        </div>
+      </div>
+
       <div class="sidebar-section">
         <div class="sidebar-header-row">
           <div class="sidebar-title">Node Types</div>
@@ -1588,9 +1814,129 @@ Short CLI (if inside repo; save server once with `connect`):
           <strong>Agent-Native Discovery</strong><br>
           Point Claude Code, Codex, or Antigravity at <code>/llms.txt</code> (or <code>/agent</code>) for live ready tasks and exact REST endpoints:
         </div>
-        <pre class="modal-code">python -m adapters.codex_adapter connect &lt;SERVER_URL&gt; --agent-id codex
+        <pre class="modal-code">python -m adapters.codex_adapter connect &lt;SERVER_URL&gt; --agent-id codex --api-key &lt;BOARD_KEY&gt;
 python -m adapters.codex_adapter start
 python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTH LOGIN GATE MODAL -->
+  <div class="auth-backdrop" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+    <form class="auth-card" id="auth-form">
+      <div>
+        <h2 id="auth-modal-title" style="font-size:16px;font-weight:700;">Sign in to SYNAPSE</h2>
+        <p style="font-size:11px;color:var(--text-tertiary);margin-top:3px;">Authenticated via Supabase Auth. Only approved board members and revocable board MCP keys can access your graphs.</p>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" type="button" data-auth-mode="login">Sign In</button>
+        <button class="auth-tab" type="button" data-auth-mode="signup">Sign Up</button>
+        <button class="auth-tab" type="button" data-auth-mode="otp">Email OTP</button>
+      </div>
+      <div class="auth-error" id="auth-error"></div>
+      <div class="auth-info" id="auth-info"></div>
+      <label class="field-label" id="auth-name-wrap" style="display:none;">
+        Display Name
+        <input class="field-input" id="auth-name" type="text" placeholder="Himanshu">
+      </label>
+      <label class="field-label">
+        Email
+        <input class="field-input" id="auth-email" type="email" required placeholder="you@example.com">
+      </label>
+      <label class="field-label" id="auth-password-wrap">
+        Password
+        <input class="field-input" id="auth-password" type="password" placeholder="••••••••">
+      </label>
+      <label class="field-label" id="auth-otp-wrap" style="display:none;">
+        6-Digit Email Code (leave blank first to send code)
+        <input class="field-input" id="auth-otp-code" type="text" placeholder="123456">
+      </label>
+      <button class="btn btn-primary" id="auth-submit-btn" type="submit" style="width:100%;">Continue</button>
+    </form>
+  </div>
+
+  <!-- NEW BOARD / JOIN BOARD MODAL -->
+  <div class="modal-backdrop" id="board-form-modal" role="dialog" aria-modal="true">
+    <form class="modal-card" id="board-create-form" style="max-width:440px;">
+      <div class="modal-header">
+        <h2 id="board-form-title">Create Knowledge Board</h2>
+        <button class="drawer-close" id="btn-close-board-form" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="create-board-fields" style="display:flex;flex-direction:column;gap:10px;">
+          <label class="field-label">Project / Board Title <input class="field-input" id="new-board-title" type="text" placeholder="e.g. Realtime Chat App"></label>
+          <label class="field-label">Stage
+            <select class="field-select" id="new-board-stage">
+              <option value="building">Currently Building</option>
+              <option value="built">Built / Completed</option>
+            </select>
+          </label>
+          <label class="field-label">Starter Template (Optional)
+            <select class="field-select" id="new-board-template">
+              <option value="">Empty Board</option>
+              <option value="tictactoe">Tic Tac Toe (8-node DAG)</option>
+              <option value="auth">Auth Service (5-node DAG)</option>
+            </select>
+          </label>
+        </div>
+        <div id="join-board-fields" style="display:none;flex-direction:column;gap:10px;">
+          <label class="field-label">Friend Invite Code <input class="field-input" id="join-invite-code" type="text" placeholder="inv-xxxxxxxxxx"></label>
+          <div id="join-board-status" style="font-size:11px;color:var(--text-secondary);"></div>
+        </div>
+        <button class="btn btn-primary" id="board-form-submit" type="submit" style="width:100%;">Create Board</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- TEAM & MCP ACCESS MODAL -->
+  <div class="modal-backdrop" id="access-modal" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:600px;">
+      <div class="modal-header">
+        <h2 id="access-modal-title">Board Team &amp; Synapse MCP Access</h2>
+        <button class="drawer-close" id="btn-close-access" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="max-height:78vh;overflow-y:auto;">
+        <div class="access-row">
+          <div class="access-row-main">
+            <div class="access-row-title" id="access-board-name">Active Board</div>
+            <div class="access-row-sub" id="access-board-meta">Stage: building</div>
+          </div>
+          <button class="mini-btn" id="btn-toggle-board-stage" type="button">Mark Built</button>
+        </div>
+
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <strong>Friends &amp; Permissions</strong>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <select class="field-select" id="invite-role-select" style="height:26px;font-size:11px;">
+                <option value="editor">Editor (Can edit graph)</option>
+                <option value="viewer">Viewer (Read-only)</option>
+              </select>
+              <button class="mini-btn primary" id="btn-create-invite" type="button">Create Invite</button>
+            </div>
+          </div>
+          <div id="invite-code-banner" class="auth-info" style="margin-bottom:6px;"></div>
+          <div class="access-list" id="access-members-list"></div>
+        </div>
+
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <strong>AI Agent &amp; MCP Keys (Valid Until Revoked)</strong>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input class="field-input" id="agent-key-name-input" type="text" placeholder="e.g. claude-code" style="height:26px;width:130px;font-size:11px;">
+              <button class="mini-btn primary" id="btn-create-agent-key" type="button">Generate Key</button>
+            </div>
+          </div>
+          <div id="new-agent-key-box" style="display:none;margin-bottom:8px;">
+            <div style="font-size:11px;font-weight:600;color:var(--accent-green);margin-bottom:4px;">Copy your Board Agent Key &amp; MCP config now (shown once):</div>
+            <pre class="modal-code" id="new-agent-key-snippet"></pre>
+          </div>
+          <div class="access-list" id="access-keys-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1603,11 +1949,18 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     const ROW_GAP = 16;
 
     let graphData = { nodes: [], edges: [], stats: {}, users: [] };
+    let boardsList = [];
+    let activeBoardId = null;
+    let authConfig = { auth_enabled: true };
+    let currentAccount = null;
+    let authMode = 'login';
+    let boardModalMode = 'create';
     let selectedNodeId = null;
     let hoveredNodeId = null;
     let activeFilter = null; // { kind: 'type'|'status'|'user', value: string }
     let isSimulating = false;
     let ws = null;
+    let wsReconnectTimer = null;
     let currentBrowserUserId = null;
     let joinInFlight = null;
 
@@ -2380,7 +2733,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         try {
           const body = { tool_name: 'dashboard' };
           if (customName) body.display_name = customName;
-          const res = await fetch('/api/users/join', {
+          const boardParam = activeBoardId ? `?board_id=${encodeURIComponent(activeBoardId)}` : '';
+          const res = await authFetch(`/api/users/join${boardParam}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -2494,7 +2848,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       }
 
       try {
-        const res = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/events`);
+        const boardParam = activeBoardId ? `?board_id=${encodeURIComponent(activeBoardId)}` : '';
+        const res = await authFetch(`/api/nodes/${encodeURIComponent(nodeId)}/events${boardParam}`);
         if (res.ok) renderAuditTrail(await res.json());
         else renderFallbackAuditTrail(node);
       } catch {
@@ -2625,6 +2980,475 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       eventStream.scrollTop = eventStream.scrollHeight;
     }
 
+    // ===================== AUTH, MULTI-BOARD & TEAM ACCESS =====================
+    function getStoredToken() {
+      try { return localStorage.getItem('omniharness_access_token') || ''; } catch { return ''; }
+    }
+    function setStoredTokens(accessToken, refreshToken) {
+      try {
+        if (accessToken) localStorage.setItem('omniharness_access_token', accessToken);
+        else localStorage.removeItem('omniharness_access_token');
+        if (refreshToken) localStorage.setItem('omniharness_refresh_token', refreshToken);
+        else if (refreshToken === null) localStorage.removeItem('omniharness_refresh_token');
+      } catch {}
+    }
+
+    async function authFetch(url, options = {}, allowRefresh = true) {
+      const headers = new Headers(options.headers || {});
+      const token = getStoredToken();
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+      if (activeBoardId && !headers.has('X-Board-Id')) headers.set('X-Board-Id', activeBoardId);
+
+      let res = await fetch(url, { ...options, headers, credentials: 'same-origin' });
+      if (res.status === 401 && allowRefresh && authConfig.auth_enabled) {
+        let rt = '';
+        try { rt = localStorage.getItem('omniharness_refresh_token') || ''; } catch {}
+        if (rt) {
+          const refRes = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: rt }),
+            credentials: 'same-origin',
+          });
+          if (refRes.ok) {
+            const refData = await refRes.json();
+            if (refData && refData.access_token) {
+              setStoredTokens(refData.access_token, refData.refresh_token || rt);
+              headers.set('Authorization', `Bearer ${refData.access_token}`);
+              res = await fetch(url, { ...options, headers, credentials: 'same-origin' });
+            }
+          }
+        }
+        if (res.status === 401) {
+          openAuthModal();
+        }
+      }
+      return res;
+    }
+
+    function openAuthModal(msg) {
+      const modal = document.getElementById('auth-modal');
+      const errEl = document.getElementById('auth-error');
+      const infoEl = document.getElementById('auth-info');
+      errEl.classList.remove('visible');
+      infoEl.classList.remove('visible');
+      if (msg) {
+        errEl.textContent = msg;
+        errEl.classList.add('visible');
+      }
+      modal.classList.add('open');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.remove('open');
+    }
+
+    function setAuthMode(mode) {
+      authMode = mode;
+      document.querySelectorAll('.auth-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.authMode === mode);
+      });
+      document.getElementById('auth-name-wrap').style.display = mode === 'signup' ? 'flex' : 'none';
+      document.getElementById('auth-password-wrap').style.display = mode === 'otp' ? 'none' : 'flex';
+      document.getElementById('auth-otp-wrap').style.display = mode === 'otp' ? 'flex' : 'none';
+      document.getElementById('auth-error').classList.remove('visible');
+      document.getElementById('auth-info').classList.remove('visible');
+      document.getElementById('auth-submit-btn').textContent =
+        mode === 'signup' ? 'Create Account' : mode === 'otp' ? 'Send / Verify Code' : 'Sign In';
+    }
+
+    document.querySelectorAll('.auth-tab').forEach(btn => {
+      btn.addEventListener('click', () => setAuthMode(btn.dataset.authMode));
+    });
+
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('auth-error');
+      const infoEl = document.getElementById('auth-info');
+      errEl.classList.remove('visible');
+      infoEl.classList.remove('visible');
+
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value;
+      const displayName = document.getElementById('auth-name').value.trim();
+      const otpCode = document.getElementById('auth-otp-code').value.trim();
+
+      try {
+        let res;
+        if (authMode === 'signup') {
+          res = await fetch('/api/auth/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, display_name: displayName || undefined }),
+            credentials: 'same-origin',
+          });
+        } else if (authMode === 'otp') {
+          if (!otpCode) {
+            res = await fetch('/api/auth/otp/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email }),
+            });
+            const d = await res.json();
+            if (!res.ok) throw new Error(d.detail || 'Failed to send code');
+            infoEl.textContent = d.message || 'Check your email for the 6-digit code, enter it above, and submit.';
+            infoEl.classList.add('visible');
+            return;
+          }
+          res = await fetch('/api/auth/otp/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, token: otpCode }),
+            credentials: 'same-origin',
+          });
+        } else {
+          res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+            credentials: 'same-origin',
+          });
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Authentication failed');
+        if (!data.access_token) {
+          infoEl.textContent = 'Account created! Check your email to confirm, then sign in.';
+          infoEl.classList.add('visible');
+          setAuthMode('login');
+          return;
+        }
+        setStoredTokens(data.access_token, data.refresh_token || '');
+        closeAuthModal();
+        await bootstrapAuthenticatedSession();
+      } catch (err) {
+        errEl.textContent = err.message || 'Authentication failed';
+        errEl.classList.add('visible');
+      }
+    });
+
+    document.getElementById('btn-logout').addEventListener('click', async () => {
+      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch {}
+      setStoredTokens('', null);
+      currentAccount = null;
+      boardsList = [];
+      activeBoardId = null;
+      if (ws) { try { ws.close(); } catch {} }
+      document.getElementById('account-chip').classList.remove('visible');
+      openAuthModal();
+    });
+
+    function renderBoardsSidebar() {
+      const container = document.getElementById('sidebar-boards-list');
+      const countEl = document.getElementById('boards-count');
+      if (!container || !countEl) return;
+      countEl.textContent = boardsList.length;
+      container.innerHTML = '';
+
+      if (!boardsList.length) {
+        const empty = document.createElement('div');
+        empty.className = 'sidebar-user-empty';
+        empty.textContent = 'No boards yet';
+        container.appendChild(empty);
+        return;
+      }
+
+      const building = boardsList.filter(b => (b.stage || 'building') === 'building');
+      const built = boardsList.filter(b => b.stage === 'built');
+
+      const renderGroup = (label, items) => {
+        if (!items.length) return;
+        const gl = document.createElement('div');
+        gl.className = 'boards-group-label';
+        gl.textContent = label;
+        container.appendChild(gl);
+        items.forEach(b => {
+          const row = document.createElement('div');
+          row.className = 'board-item' + (b.id === activeBoardId ? ' active' : '');
+          row.title = `${b.title} (${b.role || 'member'})`;
+          const dot = document.createElement('span');
+          dot.className = `board-dot ${b.stage || 'building'}`;
+          const titleSpan = document.createElement('span');
+          titleSpan.className = 'board-item-title';
+          titleSpan.textContent = b.title;
+          const meta = document.createElement('span');
+          meta.className = 'board-item-meta';
+          meta.textContent = String(b.node_count ?? 0);
+          row.appendChild(dot);
+          row.appendChild(titleSpan);
+          row.appendChild(meta);
+          row.addEventListener('click', () => selectBoard(b.id));
+          container.appendChild(row);
+        });
+      };
+
+      renderGroup('Building', building);
+      renderGroup('Built', built);
+    }
+
+    async function loadBoards() {
+      const res = await authFetch('/api/boards');
+      if (!res.ok) return;
+      boardsList = await res.json();
+      let savedBoard = null;
+      try { savedBoard = localStorage.getItem('omniharness_active_board'); } catch {}
+      if (!activeBoardId || !boardsList.some(b => b.id === activeBoardId)) {
+        const preferred = boardsList.find(b => b.id === savedBoard) || boardsList[0];
+        activeBoardId = preferred ? preferred.id : null;
+      }
+      renderBoardsSidebar();
+    }
+
+    async function selectBoard(boardId) {
+      if (!boardId || activeBoardId === boardId) return;
+      activeBoardId = boardId;
+      try { localStorage.setItem('omniharness_active_board', boardId); } catch {}
+      customPositions = {};
+      hasInitialFit = false;
+      selectedNodeId = null;
+      activeFilter = null;
+      updateFilterUI();
+      renderBoardsSidebar();
+      connectWebSocket();
+      await fetchGraphState();
+    }
+
+    function openBoardModal(mode) {
+      boardModalMode = mode;
+      document.getElementById('board-form-title').textContent =
+        mode === 'join' ? "Join a Friend's Board" : 'Create Knowledge Board';
+      document.getElementById('create-board-fields').style.display = mode === 'create' ? 'flex' : 'none';
+      document.getElementById('join-board-fields').style.display = mode === 'join' ? 'flex' : 'none';
+      document.getElementById('board-form-submit').textContent =
+        mode === 'join' ? 'Join Board' : 'Create Board';
+      document.getElementById('join-board-status').textContent = '';
+      document.getElementById('board-form-modal').classList.add('open');
+    }
+
+    document.getElementById('btn-new-board').addEventListener('click', () => openBoardModal('create'));
+    document.getElementById('btn-join-board').addEventListener('click', () => openBoardModal('join'));
+    document.getElementById('btn-close-board-form').addEventListener('click', () => {
+      document.getElementById('board-form-modal').classList.remove('open');
+    });
+
+    document.getElementById('board-create-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (boardModalMode === 'create') {
+        const title = document.getElementById('new-board-title').value.trim();
+        if (!title) return;
+        const stage = document.getElementById('new-board-stage').value;
+        const seed_template = document.getElementById('new-board-template').value || null;
+        const res = await authFetch('/api/boards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, stage, seed_template }),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          document.getElementById('new-board-title').value = '';
+          document.getElementById('board-form-modal').classList.remove('open');
+          await loadBoards();
+          await selectBoard(created.id);
+        }
+      } else {
+        const invite_code = document.getElementById('join-invite-code').value.trim();
+        if (!invite_code) return;
+        const res = await authFetch('/api/boards/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ invite_code }),
+        });
+        const data = await res.json();
+        const statusEl = document.getElementById('join-board-status');
+        if (!res.ok) {
+          statusEl.style.color = 'var(--accent-red)';
+          statusEl.textContent = data.detail || 'Could not join board';
+          return;
+        }
+        if (data.pending_approval) {
+          statusEl.style.color = 'var(--accent-amber)';
+          statusEl.textContent = 'Request sent! You will see the board once the owner approves you.';
+        } else {
+          document.getElementById('join-invite-code').value = '';
+          document.getElementById('board-form-modal').classList.remove('open');
+          await loadBoards();
+          if (data.board && data.board.id) await selectBoard(data.board.id);
+        }
+      }
+    });
+
+    async function refreshAccessModal() {
+      if (!activeBoardId) return;
+      const board = boardsList.find(b => b.id === activeBoardId);
+      document.getElementById('access-board-name').textContent = board ? board.title : activeBoardId;
+      const stage = (board && board.stage) || 'building';
+      document.getElementById('access-board-meta').textContent = `ID: ${activeBoardId} · Stage: ${stage} · Role: ${(board && board.role) || 'member'}`;
+      const toggleBtn = document.getElementById('btn-toggle-board-stage');
+      toggleBtn.textContent = stage === 'built' ? 'Move to Building' : 'Mark Built';
+      toggleBtn.style.display = (board && board.role === 'owner') ? 'inline-flex' : 'none';
+
+      const [memRes, keyRes] = await Promise.all([
+        authFetch(`/api/boards/${encodeURIComponent(activeBoardId)}/members`),
+        authFetch(`/api/boards/${encodeURIComponent(activeBoardId)}/agent-keys`),
+      ]);
+
+      const memList = document.getElementById('access-members-list');
+      memList.innerHTML = '';
+      if (memRes.ok) {
+        const members = await memRes.json();
+        members.forEach(m => {
+          const row = document.createElement('div');
+          row.className = 'access-row';
+          const main = document.createElement('div');
+          main.className = 'access-row-main';
+          const title = document.createElement('div');
+          title.className = 'access-row-title';
+          title.textContent = m.display_name || m.email || m.user_id;
+          const sub = document.createElement('div');
+          sub.className = 'access-row-sub';
+          sub.textContent = `${m.role} · ${m.status}${m.email ? ' · ' + m.email : ''}`;
+          main.appendChild(title);
+          main.appendChild(sub);
+          row.appendChild(main);
+
+          if (board && board.role === 'owner' && m.role !== 'owner') {
+            const btns = document.createElement('div');
+            btns.style.display = 'flex';
+            btns.style.gap = '4px';
+            if (m.status === 'pending') {
+              const appBtn = document.createElement('button');
+              appBtn.className = 'mini-btn primary';
+              appBtn.type = 'button';
+              appBtn.textContent = 'Approve';
+              appBtn.onclick = async () => {
+                await authFetch(`/api/boards/${encodeURIComponent(activeBoardId)}/members/${encodeURIComponent(m.user_id)}/approve`, { method: 'POST' });
+                await refreshAccessModal();
+              };
+              btns.appendChild(appBtn);
+            }
+            const rmBtn = document.createElement('button');
+            rmBtn.className = 'mini-btn danger';
+            rmBtn.type = 'button';
+            rmBtn.textContent = 'Remove';
+            rmBtn.onclick = async () => {
+              await authFetch(`/api/boards/${encodeURIComponent(activeBoardId)}/members/${encodeURIComponent(m.user_id)}`, { method: 'DELETE' });
+              await refreshAccessModal();
+            };
+            btns.appendChild(rmBtn);
+            row.appendChild(btns);
+          }
+          memList.appendChild(row);
+        });
+      }
+
+      const keyList = document.getElementById('access-keys-list');
+      keyList.innerHTML = '';
+      if (keyRes.ok) {
+        const keys = await keyRes.json();
+        if (!keys.length) {
+          keyList.innerHTML = '<div class="sidebar-user-empty">No AI agent keys minted yet for this board</div>';
+        }
+        keys.forEach(k => {
+          const row = document.createElement('div');
+          row.className = 'access-row';
+          const main = document.createElement('div');
+          main.className = 'access-row-main';
+          const title = document.createElement('div');
+          title.className = 'access-row-title';
+          title.textContent = `${k.name} (${k.key_prefix}…)`;
+          const sub = document.createElement('div');
+          sub.className = 'access-row-sub';
+          sub.textContent = k.revoked_at ? 'Revoked' : `Active until revoked · by ${k.created_by_email || k.created_by}`;
+          main.appendChild(title);
+          main.appendChild(sub);
+          row.appendChild(main);
+          if (!k.revoked_at) {
+            const revBtn = document.createElement('button');
+            revBtn.className = 'mini-btn danger';
+            revBtn.type = 'button';
+            revBtn.textContent = 'Revoke';
+            revBtn.onclick = async () => {
+              await authFetch(`/api/boards/${encodeURIComponent(activeBoardId)}/agent-keys/${encodeURIComponent(k.id)}`, { method: 'DELETE' });
+              await refreshAccessModal();
+            };
+            row.appendChild(revBtn);
+          }
+          keyList.appendChild(row);
+        });
+      }
+    }
+
+    document.getElementById('btn-board-access').addEventListener('click', async () => {
+      document.getElementById('invite-code-banner').classList.remove('visible');
+      document.getElementById('new-agent-key-box').style.display = 'none';
+      document.getElementById('access-modal').classList.add('open');
+      await refreshAccessModal();
+    });
+    document.getElementById('btn-close-access').addEventListener('click', () => {
+      document.getElementById('access-modal').classList.remove('open');
+    });
+    document.getElementById('btn-toggle-board-stage').addEventListener('click', async () => {
+      const board = boardsList.find(b => b.id === activeBoardId);
+      if (!board) return;
+      const nextStage = board.stage === 'built' ? 'building' : 'built';
+      const res = await authFetch(`/api/boards/${encodeURIComponent(activeBoardId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: nextStage }),
+      });
+      if (res.ok) {
+        await loadBoards();
+        await refreshAccessModal();
+      }
+    });
+    document.getElementById('btn-create-invite').addEventListener('click', async () => {
+      if (!activeBoardId) return;
+      const role = document.getElementById('invite-role-select').value;
+      const res = await authFetch(`/api/boards/${encodeURIComponent(activeBoardId)}/invites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, require_approval: true }),
+      });
+      if (res.ok) {
+        const inv = await res.json();
+        const banner = document.getElementById('invite-code-banner');
+        banner.textContent = `Invite code (requires your approval): ${inv.code}`;
+        banner.classList.add('visible');
+      }
+    });
+    document.getElementById('btn-create-agent-key').addEventListener('click', async () => {
+      if (!activeBoardId) return;
+      const name = document.getElementById('agent-key-name-input').value.trim() || 'synapse-agent';
+      const res = await authFetch(`/api/boards/${encodeURIComponent(activeBoardId)}/agent-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const origin = location.origin;
+        const snippet = [
+          `Board Key: ${data.api_key}`,
+          ``,
+          `# CLI Adapter:`,
+          `python -m adapters.codex_adapter connect ${origin} --agent-id ${name} --api-key ${data.api_key} --board-id ${activeBoardId}`,
+          ``,
+          `# Synapse MCP Config (HTTP):`,
+          JSON.stringify({
+            mcpServers: {
+              synapse: {
+                url: `${origin}/mcp`,
+                headers: { Authorization: `Bearer ${data.api_key}` },
+              },
+            },
+          }, null, 2),
+        ].join('\n');
+        document.getElementById('new-agent-key-snippet').textContent = snippet;
+        document.getElementById('new-agent-key-box').style.display = 'block';
+        document.getElementById('agent-key-name-input').value = '';
+        await refreshAccessModal();
+      }
+    });
+
     // ===================== WEBSOCKET & FETCH =====================
     function setWsStatus(state, label) {
       const dot = document.getElementById('ws-dot');
@@ -2635,9 +3459,16 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     }
 
     function connectWebSocket() {
+      if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+      if (ws) { try { ws.onclose = null; ws.close(); } catch {} ws = null; }
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const params = new URLSearchParams();
+      if (activeBoardId) params.set('board_id', activeBoardId);
+      const token = getStoredToken();
+      if (token) params.set('token', token);
+      const qs = params.toString() ? `?${params.toString()}` : '';
       try {
-        ws = new WebSocket(`${protocol}//${location.host}/ws/graph`);
+        ws = new WebSocket(`${protocol}//${location.host}/ws/graph${qs}`);
         ws.onopen = () => {
           setWsStatus('live', 'Connected');
           fetchGraphState();
@@ -2658,7 +3489,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         };
         ws.onclose = () => {
           setWsStatus('reconnecting', 'Reconnecting…');
-          setTimeout(connectWebSocket, 2500);
+          wsReconnectTimer = setTimeout(connectWebSocket, 2500);
         };
         ws.onerror = () => {
           setWsStatus('off', 'Standalone');
@@ -2671,7 +3502,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     async function fetchGraphState() {
       const t0 = performance.now();
       try {
-        const res = await fetch('/api/graph');
+        const boardParam = activeBoardId ? `?board_id=${encodeURIComponent(activeBoardId)}` : '';
+        const res = await authFetch(`/api/graph${boardParam}`);
         if (res.ok) {
           const data = await res.json();
           const ms = Math.max(1, Math.round(performance.now() - t0));
@@ -2681,6 +3513,10 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
             isSimulating = false;
             document.getElementById('sim-banner').classList.remove('visible');
             graphData = { ...data, users: Array.isArray(data.users) ? data.users : [] };
+            const activeBoard = boardsList.find(b => b.id === activeBoardId);
+            if (activeBoard) {
+              document.querySelector('.canvas-overlay-title').textContent = activeBoard.title;
+            }
             renderDAG();
             ensureBrowserJoined();
 
@@ -2845,7 +3681,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         localStorage.setItem('omniharness_user_name', nextName);
       } catch {}
       try {
-        const res = await fetch('/api/users/join', {
+        const boardParam = activeBoardId ? `?board_id=${encodeURIComponent(activeBoardId)}` : '';
+        const res = await authFetch(`/api/users/join${boardParam}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3026,12 +3863,43 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     });
 
     // ===================== INIT =====================
-    graphData = structuredClone(initialFallbackData);
-    renderDAG();
-    fitGraph();
-    selectNode('TSK-03');
-    connectWebSocket();
-    fetchGraphState();
+    async function bootstrapAuthenticatedSession() {
+      const meRes = await authFetch('/api/auth/me');
+      if (!meRes.ok) {
+        if (authConfig.auth_enabled) openAuthModal();
+        return;
+      }
+      currentAccount = await meRes.json();
+      const chip = document.getElementById('account-chip');
+      const emailEl = document.getElementById('account-email');
+      if (authConfig.auth_enabled && currentAccount) {
+        emailEl.textContent = currentAccount.email || currentAccount.display_name || currentAccount.user_id;
+        chip.classList.add('visible');
+      }
+      await loadBoards();
+      connectWebSocket();
+      await fetchGraphState();
+    }
+
+    async function initApp() {
+      try {
+        const cfgRes = await fetch('/api/auth/config');
+        if (cfgRes.ok) authConfig = await cfgRes.json();
+      } catch {
+        authConfig = { auth_enabled: false };
+      }
+
+      if (!authConfig.auth_enabled) {
+        await loadBoards();
+        connectWebSocket();
+        await fetchGraphState();
+        return;
+      }
+
+      await bootstrapAuthenticatedSession();
+    }
+
+    initApp();
   </script>
 </body>
 </html>

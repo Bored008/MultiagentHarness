@@ -116,11 +116,15 @@ class BaseAgentAdapter:
         base_url: Optional[str] = None,
         tool_name: Optional[str] = None,
         ws_path: str = "/ws/graph",
+        api_key: Optional[str] = None,
+        board_id: Optional[str] = None,
     ):
         self.agent_id = agent_id
         effective_server_url = (base_url or server_url).rstrip("/")
         self.server_url = effective_server_url
         self.tool_name = tool_name or agent_id
+        self.api_key = api_key
+        self.board_id = board_id
 
         if ws_url:
             self.ws_url = ws_url
@@ -133,6 +137,14 @@ class BaseAgentAdapter:
                 self.ws_url = "wss://" + base[8:] + clean_path
             else:
                 self.ws_url = f"ws://{base}{clean_path}"
+            qs_parts = []
+            if self.api_key:
+                qs_parts.append(f"token={self.api_key}")
+            if self.board_id:
+                qs_parts.append(f"board_id={self.board_id}")
+            if qs_parts:
+                sep = "&" if "?" in self.ws_url else "?"
+                self.ws_url = f"{self.ws_url}{sep}{'&'.join(qs_parts)}"
 
         self._custom_client = client is not None
         self._client = client or httpx.Client(base_url=self.server_url, timeout=30.0)
@@ -144,7 +156,28 @@ class BaseAgentAdapter:
         self._client.headers.setdefault("X-Tool-Name", self.tool_name)
         if self.client_host:
             self._client.headers.setdefault("X-Client-Host", self.client_host)
+        if self.api_key:
+            self._client.headers.setdefault("Authorization", f"Bearer {self.api_key}")
+        if self.board_id:
+            self._client.headers.setdefault("X-Board-Id", self.board_id)
         self._listeners: List[ConflictListener] = []
+
+    def set_auth(self, api_key: Optional[str] = None, board_id: Optional[str] = None) -> None:
+        """Configure Bearer Board Agent Key and target board_id on HTTP & WebSocket clients."""
+        if api_key:
+            self.api_key = api_key
+            self._client.headers["Authorization"] = f"Bearer {api_key}"
+        if board_id:
+            self.board_id = board_id
+            self._client.headers["X-Board-Id"] = board_id
+        if api_key or board_id:
+            base_ws = self.ws_url.split("?")[0]
+            qs_parts = []
+            if self.api_key:
+                qs_parts.append(f"token={self.api_key}")
+            if self.board_id:
+                qs_parts.append(f"board_id={self.board_id}")
+            self.ws_url = f"{base_ws}?{'&'.join(qs_parts)}" if qs_parts else base_ws
 
     def join_workspace(
         self,
