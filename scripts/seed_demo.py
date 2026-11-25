@@ -1,6 +1,6 @@
 """
 Seed initial demo graph nodes (REQ-01, DEC-01, TSK-01, TSK-02, TSK-03)
-into OmniHarness for live two-laptop testing.
+into SYNAPSE for live two-laptop testing.
 """
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ if str(ROOT_DIR) not in sys.path:
 
 from harness.seeds import get_seed_nodes
 
-DEFAULT_SERVER = os.environ.get("OMNIHARNESS_SERVER", "http://127.0.0.1:8000")
+DEFAULT_SERVER = os.environ.get("SYNAPSE_SERVER", "http://127.0.0.1:8000")
 
 
 def seed_graph(server_url: str = DEFAULT_SERVER) -> None:
     server_url = server_url.rstrip("/")
-    print(f"Connecting to OmniHarness on {server_url}...")
+    print(f"Connecting to SYNAPSE on {server_url}...")
 
     client = httpx.Client(base_url=server_url, timeout=10.0)
 
@@ -56,7 +56,7 @@ def seed_graph(server_url: str = DEFAULT_SERVER) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Seed initial OmniHarness nodes for live testing")
-    parser.add_argument("--server", default=DEFAULT_SERVER, help="OmniHarness server URL")
+    parser = argparse.ArgumentParser(description="Seed initial SYNAPSE nodes for live testing")
+    parser.add_argument("--server", default=DEFAULT_SERVER, help="SYNAPSE server URL")
     args = parser.parse_args()
     seed_graph(args.server)

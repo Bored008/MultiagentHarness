@@ -1,5 +1,5 @@
 """
-Data models and schemas for OmniHarness.
+Data models and schemas for SYNAPSE.
 """
 from __future__ import annotations
 

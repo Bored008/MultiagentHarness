@@ -1,5 +1,5 @@
 """
-Claude Code CLI Adapter for OmniHarness.
+Claude Code CLI Adapter for SYNAPSE.
 Subclasses BaseAgentAdapter with custom CLI entrypoint and Claude-specific prompts.
 """
 from __future__ import annotations
@@ -14,14 +14,14 @@ from adapters.cli import build_adapter_parser, run_adapter_cli
 
 DEFAULT_AGENT_ID = "claude-code-cli"
 CLI_PROG = "python -m adapters.claude_adapter"
-CLI_DESCRIPTION = "OmniHarness Adapter for Claude Code CLI"
+CLI_DESCRIPTION = "SYNAPSE Adapter for Claude Code CLI"
 
 
 class ClaudeCodeAdapter(BaseAgentAdapter):
     """
     Adapter specialized for Claude Code CLI.
     Enables Claude Code CLI agents to discover, claim, execute, and submit
-    tasks within the shared OmniHarness graph.
+    tasks within the shared SYNAPSE graph.
     """
 
     def __init__(

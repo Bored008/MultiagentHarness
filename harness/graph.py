@@ -1,5 +1,5 @@
 """
-In-Memory NetworkX DAG Manager, Board Registry, and Blast-Radius Invalidation Engine for OmniHarness.
+In-Memory NetworkX DAG Manager, Board Registry, and Blast-Radius Invalidation Engine for SYNAPSE.
 Provides real-time dependency resolution, cycle prevention, atomic downstream
 blast-radius invalidation, scoped subgraph extraction, conflict resolution,
 and crash recovery hydration from EventStore / SupabaseRestStore.
@@ -25,7 +25,7 @@ from harness.models import (
     WorkspaceUser,
 )
 
-logger = logging.getLogger("omniharness.graph")
+logger = logging.getLogger("synapse.graph")
 
 
 class GraphError(Exception):

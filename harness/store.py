@@ -173,7 +173,7 @@ def _row_to_agent_key(row: sqlite3.Row) -> BoardAgentKey:
 
 
 class EventStore:
-    def __init__(self, db_path: str = "omniharness.db"):
+    def __init__(self, db_path: str = "synapse.db"):
         self.db_path = db_path
         if db_path != ":memory:" and not db_path.startswith("file:"):
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)

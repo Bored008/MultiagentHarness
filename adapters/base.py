@@ -1,5 +1,5 @@
 """
-OmniHarness Base Agent Adapter.
+SYNAPSE Base Agent Adapter.
 Provides standard HTTP operations and real-time WebSocket conflict listening
 for heterogeneous AI agents (Claude Code, OpenAI Codex / Cursor, Antigravity).
 """
@@ -16,12 +16,12 @@ import httpx
 import websockets
 import websockets.sync.client
 
-logger = logging.getLogger("omniharness.adapter")
+logger = logging.getLogger("synapse.adapter")
 
 
 class ConflictListener:
     """
-    Background worker listening for EVENT_CONFLICT_DETECTED on OmniHarness WebSocket.
+    Background worker listening for EVENT_CONFLICT_DETECTED on SYNAPSE WebSocket.
     Runs synchronously inside a daemon thread for non-blocking execution across sync/async code.
     """
 
@@ -38,7 +38,7 @@ class ConflictListener:
             return self
         self.stop_event.clear()
         self.connected_event.clear()
-        self._thread = threading.Thread(target=self._run, daemon=True, name="OmniHarness-ConflictListener")
+        self._thread = threading.Thread(target=self._run, daemon=True, name="SYNAPSE-ConflictListener")
         self._thread.start()
         return self
 
@@ -103,7 +103,7 @@ class ConflictListener:
 
 class BaseAgentAdapter:
     """
-    Base Agent Adapter for OmniHarness.
+    Base Agent Adapter for SYNAPSE.
     Handles task leasing, scoped context retrieval, submission, and conflict alerts.
     """
 
@@ -386,4 +386,4 @@ class BaseAgentAdapter:
 
 
 # Alias for client interoperability as specified in PROJECT.md
-OmniHarnessClient = BaseAgentAdapter
+SynapseClient = BaseAgentAdapter

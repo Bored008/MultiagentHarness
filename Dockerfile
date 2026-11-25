@@ -4,7 +4,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    OMNIHARNESS_DB_PATH=/app/data/omniharness.db
+    SYNAPSE_DB_PATH=/app/data/synapse.db
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

@@ -1,5 +1,5 @@
 """
-Synapse MCP Server for OmniHarness.
+Synapse MCP Server for SYNAPSE.
 Exposes board-scoped Knowledge Graph tools over:
   1. Hosted Streamable HTTP at `/mcp` (mounted on FastAPI with Bearer auth + immediate revocation).
   2. Local stdio transport (`python -m harness.mcp_server`) proxying via BaseAgentAdapter.
@@ -21,11 +21,11 @@ from mcp.server.transport_security import TransportSecuritySettings
 from auth.supabase_auth import AuthPrincipal, extract_bearer_token
 from harness.models import Node, NodeStatus, NodeType
 
-logger = logging.getLogger("omniharness.mcp")
+logger = logging.getLogger("synapse.mcp")
 
 # Per-request auth context populated by AuthenticatedMCPApp for hosted /mcp requests
 _mcp_auth_ctx: contextvars.ContextVar[Optional[Tuple[AuthPrincipal, str]]] = contextvars.ContextVar(
-    "omniharness_mcp_auth",
+    "synapse_mcp_auth",
     default=None,
 )
 
@@ -108,7 +108,7 @@ def create_hosted_mcp_server(
     ws_manager: Any,
     mutation_lock: asyncio.Lock,
 ) -> FastMCP:
-    """Create a FastMCP instance wired directly to the live OmniHarness BoardDAGRegistry & WS hub."""
+    """Create a FastMCP instance wired directly to the live SYNAPSE BoardDAGRegistry & WS hub."""
     mcp = FastMCP(
         name="synapse-mcp",
         instructions=(
@@ -396,16 +396,16 @@ def create_hosted_mcp_server(
 def run_stdio_bridge() -> None:
     """
     Run a local stdio MCP server that proxies to a remote SYNAPSE server using
-    OMNIHARNESS_SERVER / OMNIHARNESS_API_KEY / OMNIHARNESS_BOARD_ID (or .omniharness.json).
+    SYNAPSE_SERVER / SYNAPSE_API_KEY / SYNAPSE_BOARD_ID (or .synapse.json).
     """
     from adapters.base import BaseAgentAdapter
     from adapters.cli import load_saved_profile
 
     saved = load_saved_profile()
-    server_url = (os.environ.get("OMNIHARNESS_SERVER") or saved.get("server") or "http://localhost:8000").rstrip("/")
-    api_key = os.environ.get("OMNIHARNESS_API_KEY") or saved.get("api_key")
-    board_id = os.environ.get("OMNIHARNESS_BOARD_ID") or saved.get("board_id")
-    agent_id = os.environ.get("OMNIHARNESS_AGENT_ID") or saved.get("agent_id") or "synapse-mcp"
+    server_url = (os.environ.get("SYNAPSE_SERVER") or saved.get("server") or "http://localhost:8000").rstrip("/")
+    api_key = os.environ.get("SYNAPSE_API_KEY") or saved.get("api_key")
+    board_id = os.environ.get("SYNAPSE_BOARD_ID") or saved.get("board_id")
+    agent_id = os.environ.get("SYNAPSE_AGENT_ID") or saved.get("agent_id") or "synapse-mcp"
 
     client = BaseAgentAdapter(
         agent_id=agent_id,

@@ -25,8 +25,8 @@ class TokenPayload(BaseModel):
     exp: int = Field(..., description="Expiration timestamp (Unix epoch)")
     iat: int = Field(default_factory=lambda: int(time.time()), description="Issued-at timestamp")
     nbf: Optional[int] = Field(None, description="Not-before timestamp")
-    iss: Optional[str] = Field("omniharness-auth", description="Token issuer")
-    aud: Optional[str] = Field("omniharness-api", description="Token audience")
+    iss: Optional[str] = Field("synapse-auth", description="Token issuer")
+    aud: Optional[str] = Field("synapse-api", description="Token audience")
     claims: Optional[UserClaims] = Field(None, description="Embedded user claims")
 
 

@@ -1,5 +1,5 @@
 """
-Shared CLI parser, profile/env resolution, and command runner for OmniHarness adapters.
+Shared CLI parser, profile/env resolution, and command runner for SYNAPSE adapters.
 Provides 100% symmetrical UX across Claude Code, OpenAI Codex/Cursor, and Antigravity.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ import httpx
 from adapters.base import BaseAgentAdapter
 
 DEFAULT_SERVER_URL = "http://localhost:8000"
-PROFILE_FILENAME = ".omniharness.json"
+PROFILE_FILENAME = ".synapse.json"
 
 
 def _load_json_dict(path: Path) -> Dict[str, Any]:
@@ -33,7 +33,7 @@ def _load_json_dict(path: Path) -> Dict[str, Any]:
 
 def load_saved_profile() -> Dict[str, Any]:
     """
-    Load saved OmniHarness CLI profile from ~/.omniharness.json and CWD .omniharness.json.
+    Load saved SYNAPSE CLI profile from ~/.synapse.json and CWD .synapse.json.
     CWD settings take precedence over home-directory settings.
     """
     profile: Dict[str, Any] = {}
@@ -54,7 +54,7 @@ def save_cli_profile(
     api_key: Optional[str] = None,
     board_id: Optional[str] = None,
 ) -> Path:
-    """Persist {server, agent_id, api_key?, board_id?} into .omniharness.json."""
+    """Persist {server, agent_id, api_key?, board_id?} into .synapse.json."""
     target = (Path.home() / PROFILE_FILENAME) if global_scope else (Path.cwd() / PROFILE_FILENAME)
     existing = _load_json_dict(target)
     existing["server"] = server_url.strip().rstrip("/")
@@ -73,8 +73,8 @@ def resolve_cli_auth(
 ) -> Tuple[Optional[str], Optional[str]]:
     """Resolve (api_key, board_id) from CLI flags, env vars, or saved profile."""
     saved = load_saved_profile()
-    env_key = os.environ.get("OMNIHARNESS_API_KEY", "").strip()
-    env_board = os.environ.get("OMNIHARNESS_BOARD_ID", "").strip()
+    env_key = os.environ.get("SYNAPSE_API_KEY", "").strip()
+    env_board = os.environ.get("SYNAPSE_BOARD_ID", "").strip()
 
     api_key = (
         (cli_api_key.strip() if isinstance(cli_api_key, str) and cli_api_key.strip() else None)
@@ -97,14 +97,14 @@ def resolve_cli_config(
     """
     Resolve (server_url, agent_id) with strict precedence:
       1. Explicit CLI flags (--server / --agent-id)
-      2. Environment variables (OMNIHARNESS_SERVER / OMNIHARNESS_AGENT_ID)
-      3. Saved profile (.omniharness.json in CWD, then ~/.omniharness.json)
+      2. Environment variables (SYNAPSE_SERVER / SYNAPSE_AGENT_ID)
+      3. Saved profile (.synapse.json in CWD, then ~/.synapse.json)
       4. Defaults (http://localhost:8000, default_agent_id)
     """
     saved = load_saved_profile()
 
-    env_server = os.environ.get("OMNIHARNESS_SERVER", "").strip()
-    env_agent_id = os.environ.get("OMNIHARNESS_AGENT_ID", "").strip()
+    env_server = os.environ.get("SYNAPSE_SERVER", "").strip()
+    env_agent_id = os.environ.get("SYNAPSE_AGENT_ID", "").strip()
 
     raw_server = (
         (cli_server.strip() if isinstance(cli_server, str) and cli_server.strip() else None)
@@ -215,7 +215,7 @@ def _add_common_flags(target: argparse.ArgumentParser, default_agent_id: str, su
     target.add_argument(
         "--server",
         default=unset,
-        help=f"OmniHarness REST server base URL (env: OMNIHARNESS_SERVER, default: {DEFAULT_SERVER_URL})",
+        help=f"SYNAPSE REST server base URL (env: SYNAPSE_SERVER, default: {DEFAULT_SERVER_URL})",
     )
     target.add_argument(
         "--ws-url",
@@ -225,17 +225,17 @@ def _add_common_flags(target: argparse.ArgumentParser, default_agent_id: str, su
     target.add_argument(
         "--agent-id",
         default=unset,
-        help=f"Agent identifier for logging and lease ownership (env: OMNIHARNESS_AGENT_ID, default: {default_agent_id})",
+        help=f"Agent identifier for logging and lease ownership (env: SYNAPSE_AGENT_ID, default: {default_agent_id})",
     )
     target.add_argument(
         "--api-key",
         default=unset,
-        help="Board Agent Key (omni_...) or Bearer token (env: OMNIHARNESS_API_KEY)",
+        help="Board Agent Key (syn_...) or Bearer token (env: SYNAPSE_API_KEY)",
     )
     target.add_argument(
         "--board-id",
         default=unset,
-        help="Target Knowledge Board ID (env: OMNIHARNESS_BOARD_ID)",
+        help="Target Knowledge Board ID (env: SYNAPSE_BOARD_ID)",
     )
     target.add_argument(
         "--json",
@@ -250,7 +250,7 @@ def build_adapter_parser(
     description: str,
     default_agent_id: str,
 ) -> argparse.ArgumentParser:
-    """Build the symmetrical CLI parser shared across all OmniHarness agent adapters."""
+    """Build the symmetrical CLI parser shared across all SYNAPSE agent adapters."""
     common = argparse.ArgumentParser(add_help=False)
     _add_common_flags(common, default_agent_id=default_agent_id, suppress_defaults=False)
 
@@ -269,17 +269,17 @@ def build_adapter_parser(
     connect_p = subparsers.add_parser(
         "connect",
         parents=[sub_common],
-        help="Save OmniHarness server URL and agent ID profile and verify /health",
+        help="Save SYNAPSE server URL and agent ID profile and verify /health",
     )
     connect_p.add_argument(
         "server_url",
-        help="OmniHarness server base URL (e.g. http://192.168.1.50:8000)",
+        help="SYNAPSE server base URL (e.g. http://192.168.1.50:8000)",
     )
     connect_p.add_argument(
         "--global",
         dest="global_config",
         action="store_true",
-        help="Save profile to ~/.omniharness.json instead of CWD .omniharness.json",
+        help="Save profile to ~/.synapse.json instead of CWD .synapse.json",
     )
 
     # Tasks command
@@ -473,7 +473,7 @@ def build_adapter_parser(
     import_p = subparsers.add_parser(
         "import",
         parents=[sub_common],
-        help="Import a JSON snapshot into OmniHarness",
+        help="Import a JSON snapshot into SYNAPSE",
     )
     import_p.add_argument(
         "file",

@@ -1,5 +1,5 @@
 """
-OmniHarness End-to-End 6-Gate Demo Workflow.
+SYNAPSE End-to-End 6-Gate Demo Workflow.
 Proves heterogeneous AI agent collaboration across Claude Code CLI and OpenAI Codex.
 
 Evaluation Gates:
@@ -78,7 +78,7 @@ def log_info(label: str, val: Any) -> None:
 class BackgroundServerManager:
     """Manages an in-process Uvicorn server thread for autonomous demo execution."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8888, db_path: str = "demo_omniharness.db"):
+    def __init__(self, host: str = "127.0.0.1", port: int = 8888, db_path: str = "demo_synapse.db"):
         self.host = host
         self.port = port
         self.db_path = db_path
@@ -143,18 +143,18 @@ def run_demo(server_url: Optional[str] = None) -> bool:
             r = httpx.get("http://127.0.0.1:8000/health", timeout=0.5)
             if r.status_code == 200:
                 server_url = "http://127.0.0.1:8000"
-                log_step("Detected active OmniHarness server on http://127.0.0.1:8000")
+                log_step("Detected active SYNAPSE server on http://127.0.0.1:8000")
         except Exception:
             pass
 
     if not server_url:
-        log_step("Starting isolated in-process OmniHarness server for demo...")
-        server_mgr = BackgroundServerManager(host="127.0.0.1", port=8888, db_path="demo_omniharness.db")
+        log_step("Starting isolated in-process SYNAPSE server for demo...")
+        server_mgr = BackgroundServerManager(host="127.0.0.1", port=8888, db_path="demo_synapse.db")
         server_url = server_mgr.start()
         started_own_server = True
-        log_success(f"OmniHarness server active on {server_url}")
+        log_success(f"SYNAPSE server active on {server_url}")
 
-    log_header("OmniHarness Evaluation Demo: 6 Heterogeneous Agent Gates")
+    log_header("SYNAPSE Evaluation Demo: 6 Heterogeneous Agent Gates")
 
     client = httpx.Client(base_url=server_url, timeout=10.0)
 
@@ -531,13 +531,13 @@ def run_demo(server_url: Optional[str] = None) -> bool:
         except Exception:
             pass
         if server_mgr and started_own_server:
-            log_step("Shutting down background OmniHarness server...")
+            log_step("Shutting down background SYNAPSE server...")
             server_mgr.stop()
             log_success("Cleanup complete.")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="OmniHarness 6-Gate End-to-End Evaluation Demo")
+    parser = argparse.ArgumentParser(description="SYNAPSE 6-Gate End-to-End Evaluation Demo")
     parser.add_argument("--server", default=None, help="Server URL (e.g. http://127.0.0.1:8000). If omitted, boots isolated test server.")
     args = parser.parse_args()
 

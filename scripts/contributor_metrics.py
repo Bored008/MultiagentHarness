@@ -1,5 +1,5 @@
 """
-OmniHarness Team Metrics & Contributor Utilities
+SYNAPSE Team Metrics & Contributor Utilities
 Standalone helper for workspace tracking and reporting.
 """
 
@@ -36,7 +36,7 @@ def main() -> int:
     import datetime
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print("=" * 50)
-    print(f"  OmniHarness Metrics Utility v{get_version()}")
+    print(f"  SYNAPSE Metrics Utility v{get_version()}")
     print(f"  Timestamp: {now_str}")
     print("=" * 50)
     summary = scan_workspace_summary()

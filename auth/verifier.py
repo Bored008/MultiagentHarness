@@ -22,8 +22,8 @@ class TokenVerifier:
         self,
         public_key: Union[str, bytes],
         algorithm: str = "RS256",
-        audience: Optional[str] = "omniharness-api",
-        issuer: Optional[str] = "omniharness-auth",
+        audience: Optional[str] = "synapse-api",
+        issuer: Optional[str] = "synapse-auth",
         leeway_seconds: int = 0,
     ):
         self.public_key = public_key

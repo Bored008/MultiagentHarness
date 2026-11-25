@@ -1,6 +1,6 @@
-# MultiagentHarness
+# SYNAPSE
 
-> **OmniHarness**: Tool-Agnostic Multi-Agent Collaboration Harness for Shared Team Knowledge Base  
+> **SYNAPSE**: Tool-Agnostic Multi-Agent Collaboration Harness for Shared Team Knowledge Base  
 > Built for **NexHack 2.0 — Problem Statement 01 (Generative AI Track)**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -23,7 +23,7 @@
 
 When multiple engineers work with different AI developer tools (e.g., **Claude Code CLI**, **OpenAI Codex / Cursor**, or **Antigravity**), collaborating on a shared project often results in fragmented context, duplicate effort, and costly coordination overhead.
 
-**OmniHarness** provides a live, tool-agnostic team knowledge base and execution harness that:
+**SYNAPSE** provides a live, tool-agnostic team knowledge base and execution harness that:
 - **Maintains a Dynamic Knowledge Graph (In-Memory DAG via NetworkX)** for instant dependency resolution and sub-millisecond blast-radius invalidation.
 - **Ensures Crash Recovery & Zero-Loss State Mutations** via an SQLite append-only event sourcing log with strict `idempotency_key` guarantees.
 - **Broadcasts Realtime Updates (<50ms latency)** across distributed laptops and tools via a bidirectional WebSocket event hub.
@@ -39,7 +39,7 @@ When multiple engineers work with different AI developer tools (e.g., **Claude C
              \ (REST / MCP)                             / (REST / MCP)
               v                                        v
        +------------------------------------------------------+
-       |        OmniHarness Backend (Python FastAPI)          |
+       |        SYNAPSE Backend (Python FastAPI)          |
        |  - In-Memory DAG (NetworkX) for instant blast radius |
        |  - SQLite Event Log (Idempotency keys, crash safe)   |
        |  - WebSocket Event Broadcaster (< 50ms sync)         |
@@ -65,7 +65,7 @@ When multiple engineers work with different AI developer tools (e.g., **Claude C
    - `adapters/cli.py`: Symmetrical CLI runner, profile persistence, and auto-claim engine.
    - Standard operations: `connect`, `start`, `done`, `claim`, `context`, `submit`, `seed`, and real-time conflict listeners.
 2. **Deterministic Conflict Invalidation**:
-   - When a shared requirement or upstream task changes (`REQ-01@v2`), OmniHarness calculates the exact downstream blast radius in `< 1ms` and invalidates affected in-flight tasks with conflict notifications.
+   - When a shared requirement or upstream task changes (`REQ-01@v2`), SYNAPSE calculates the exact downstream blast radius in `< 1ms` and invalidates affected in-flight tasks with conflict notifications.
 3. **Scoped Subgraphs (~1.5k tokens)**:
    - Eliminates context-window blowout by feeding agents only their claimed task, upstream requirement, and immediate parent decisions rather than raw full-repository contexts.
 4. **Crash-Resilient Event Sourcing**:
@@ -81,8 +81,8 @@ When multiple engineers work with different AI developer tools (e.g., **Claude C
 
 ### 1. Clone & Install Dependencies
 ```bash
-git clone https://github.com/Bored008/MultiagentHarness.git
-cd MultiagentHarness
+git clone https://github.com/Bored008/MultiagentHarness.git SYNAPSE
+cd SYNAPSE
 python -m pip install -r requirements.txt
 ```
 
@@ -92,7 +92,7 @@ python -m pytest
 ```
 *(Comprehensive unit and integration tests verifying SQLite store idempotency, NetworkX DAG blast-radius traversal, REST endpoints, auth token verifiers, and multi-agent adapter conflict lifecycles)*
 
-### 3. Launch the OmniHarness Server & Live Dashboard
+### 3. Launch the SYNAPSE Server & Live Dashboard
 ```bash
 python -m uvicorn harness.server:app --host 0.0.0.0 --port 8000 --reload
 ```
@@ -104,14 +104,14 @@ Open your browser to:
 
 ## ⚡ Zero-Ceremony Agent Workflow
 
-OmniHarness provides a streamlined, zero-ceremony command workflow for coding agents (Claude Code CLI, OpenAI Codex / Cursor, Antigravity) running across separate laptops:
+SYNAPSE provides a streamlined, zero-ceremony command workflow for coding agents (Claude Code CLI, OpenAI Codex / Cursor, Antigravity) running across separate laptops:
 
 ### 1. One-Time Laptop Setup
-Connect your local environment to the OmniHarness instance (local, Cloudflare Tunnel, or Render):
+Connect your local environment to the SYNAPSE instance (local, Cloudflare Tunnel, or Render):
 ```bash
-python -m adapters.<claude|codex|agy>_adapter connect https://multiagentharness.onrender.com --agent-id my-agent-id
+python -m adapters.<claude|codex|agy>_adapter connect https://multiagentharness.onrender.com --agent-id my-agent-id --api-key syn_YOUR_KEY --board-id <BOARD_ID>
 ```
-*(Saves connection parameters to `.omniharness.json` so you never have to re-type `--server` or `--agent-id`)*
+*(Saves connection parameters to `.synapse.json` so you never have to re-type `--server` or `--agent-id`)*
 
 ### 2. Discover Ready Tasks
 View the real-time shared DAG and highlight unblocked, ready-to-claim tasks:
@@ -139,7 +139,7 @@ python -m adapters.<claude|codex|agy>_adapter done <TASK_ID> --file output.json
 
 ## 🔌 REST & WebSocket API Reference
 
-OmniHarness exposes a clean, fast REST API paired with a real-time WebSocket hub:
+SYNAPSE exposes a clean, fast REST API paired with a real-time WebSocket hub:
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
@@ -162,14 +162,14 @@ OmniHarness exposes a clean, fast REST API paired with a real-time WebSocket hub
 Execute the deterministic 6-gate evaluation workflow simulating Claude Code CLI and Codex agents collaborating, claiming tasks, handling live requirement shifts, and tracing audit lineage:
 
 ```bash
-python workflows/omniharness_demo.py
+python workflows/synapse_demo.py
 ```
 
 ---
 
 ## 🌐 Multi-Laptop Collaboration & Deployment
 
-OmniHarness is designed from the ground up for multi-engineer, multi-laptop hackathon demonstrations:
+SYNAPSE is designed from the ground up for multi-engineer, multi-laptop hackathon demonstrations:
 
 ### Option A: Hosted Cloud Instance (Render)
 - Live deployment: **https://multiagentharness.onrender.com**
@@ -202,7 +202,7 @@ OmniHarness is designed from the ground up for multi-engineer, multi-laptop hack
 ## 📂 Project Structure
 
 ```
-MultiagentHarness/
+SYNAPSE/
 ├── adapters/
 │   ├── base.py            # BaseAgentAdapter & ConflictListener
 │   ├── cli.py             # Symmetrical CLI parser & profile resolution
@@ -227,7 +227,7 @@ MultiagentHarness/
 │   ├── test_server.py     # Tests for REST endpoints & WebSockets
 │   └── test_store.py      # Tests for SQLite event persistence & idempotency
 ├── workflows/
-│   └── omniharness_demo.py # 6-gate end-to-end evaluation demo
+│   └── synapse_demo.py # 6-gate end-to-end evaluation demo
 ├── notes/
 │   ├── active-context.md  # Architectural context & project memory
 │   └── daily/             # Daily engineering logs & decisions
@@ -240,12 +240,12 @@ MultiagentHarness/
 
 ## 🎮 Built-In Demonstration: NeonGrid Tic Tac Toe
 
-OmniHarness includes a full end-to-end multi-agent demonstration showcasing collaborative task execution:
+SYNAPSE includes a full end-to-end multi-agent demonstration showcasing collaborative task execution:
 - **`TSK-01`**: Deterministic 3x3 game state engine with 8-way win evaluation and draw locking.
 - **`TSK-02`**: Unbeatable Minimax AI solver with alpha-beta pruning and depth-weighted scoring (< 5ms response time).
 - **`TSK-03`**: Cyberpunk glassmorphic UI, LocalStorage scoreboard, and procedural Web Audio API sound synthesis.
 - **`TSK-04`**: Dynamic SVG vector strike-through animation, canvas confetti celebration engine, and rematch modal.
-- **`TSK-05`**: OmniHarness WebSocket live two-player synchronization bridge.
+- **`TSK-05`**: SYNAPSE WebSocket live two-player synchronization bridge.
 
 ---
 

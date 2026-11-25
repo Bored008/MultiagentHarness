@@ -1,4 +1,4 @@
--- OmniHarness / SYNAPSE Multi-Board Knowledge Graph, Friend RBAC & Agent Keys
+-- SYNAPSE / SYNAPSE Multi-Board Knowledge Graph, Friend RBAC & Agent Keys
 
 CREATE SCHEMA IF NOT EXISTS private;
 REVOKE ALL ON SCHEMA private FROM PUBLIC, anon, authenticated;

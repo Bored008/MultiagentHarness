@@ -1,6 +1,6 @@
 """
-Seed Tic Tac Toe Multi-Agent Plan into OmniHarness.
-Connects to OmniHarness REST API, resets graph, and posts full plan DAG
+Seed Tic Tac Toe Multi-Agent Plan into SYNAPSE.
+Connects to SYNAPSE REST API, resets graph, and posts full plan DAG
 (REQ-01, DEC-01, TSK-01, TSK-02, TSK-03, TSK-04, TSK-05, ART-01).
 """
 from __future__ import annotations
@@ -18,12 +18,12 @@ if str(ROOT_DIR) not in sys.path:
 
 from harness.seeds import get_seed_nodes
 
-DEFAULT_SERVER = os.environ.get("OMNIHARNESS_SERVER", "https://multiagentharness.onrender.com")
+DEFAULT_SERVER = os.environ.get("SYNAPSE_SERVER", "https://multiagentharness.onrender.com")
 
 
 def seed_tictactoe(server_url: str = DEFAULT_SERVER) -> None:
     server_url = server_url.rstrip("/")
-    print(f"Connecting to OmniHarness on {server_url}...")
+    print(f"Connecting to SYNAPSE on {server_url}...")
 
     client = httpx.Client(base_url=server_url, timeout=15.0)
 
@@ -68,7 +68,7 @@ def seed_tictactoe(server_url: str = DEFAULT_SERVER) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Seed Tic Tac Toe Multi-Agent Plan into OmniHarness")
-    parser.add_argument("--server", default=DEFAULT_SERVER, help="OmniHarness server URL")
+    parser = argparse.ArgumentParser(description="Seed Tic Tac Toe Multi-Agent Plan into SYNAPSE")
+    parser.add_argument("--server", default=DEFAULT_SERVER, help="SYNAPSE server URL")
     args = parser.parse_args()
     seed_tictactoe(args.server)

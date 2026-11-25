@@ -13,7 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from auth.schemas import UserClaims
 from auth.verifier import TokenVerifier
 
-logger = logging.getLogger("omniharness.auth")
+logger = logging.getLogger("synapse.auth")
 
 # Standard HTTPBearer scheme for OpenAPI documentation
 bearer_scheme = HTTPBearer(auto_error=False)

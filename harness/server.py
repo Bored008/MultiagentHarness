@@ -1,5 +1,5 @@
 """
-OmniHarness FastAPI REST Backend, Multi-Board DAG Hub, Realtime WebSocket Rooms,
+SYNAPSE FastAPI REST Backend, Multi-Board DAG Hub, Realtime WebSocket Rooms,
 Supabase Auth + Friend RBAC, Persistent Revocable Agent Keys, and Hosted MCP Endpoint.
 """
 from __future__ import annotations
@@ -77,7 +77,7 @@ from harness.seeds import get_seed_nodes, list_seed_templates
 from harness.store import EventStore
 from harness.supabase_store import SupabaseRestStore
 
-logger = logging.getLogger("omniharness.server")
+logger = logging.getLogger("synapse.server")
 
 EVENT_NODE_CREATED = "EVENT_NODE_CREATED"
 EVENT_TASK_CLAIMED = "EVENT_TASK_CLAIMED"
@@ -88,7 +88,7 @@ EVENT_BLAST_RADIUS_ALERT = "EVENT_BLAST_RADIUS_ALERT"
 EVENT_USER_JOINED = "EVENT_USER_JOINED"
 EVENT_USER_UPDATED = "EVENT_USER_UPDATED"
 
-SESSION_COOKIE_NAME = "omniharness_session"
+SESSION_COOKIE_NAME = "synapse_session"
 _IGNORED_USER_ACTORS = {"", "system", "seed-engine", "dag-invalidator"}
 
 
@@ -234,7 +234,7 @@ def create_app(
     auth_client: Optional[SupabaseAuthClient] = None,
 ) -> FastAPI:
     """
-    Factory function to initialize and configure the OmniHarness FastAPI server.
+    Factory function to initialize and configure the SYNAPSE FastAPI server.
     Supports Supabase Auth + Postgres persistence (via SUPABASE_SERVICE_ROLE_KEY) or SQLite fallback,
     multi-board DAG isolation, friend approval RBAC, persistent revocable agent keys, and hosted /mcp.
     """
@@ -249,7 +249,7 @@ def create_app(
     ):
         st = SupabaseRestStore()
     else:
-        resolved_db_path = db_path if db_path is not None else os.environ.get("OMNIHARNESS_DB_PATH", "omniharness.db")
+        resolved_db_path = db_path if db_path is not None else os.environ.get("SYNAPSE_DB_PATH", "synapse.db")
         st = (dag_manager.store if dag_manager and dag_manager.store else EventStore(db_path=resolved_db_path))
 
     default_dag = dag_manager or DAGManager(store=st, board_id="default")
@@ -258,7 +258,7 @@ def create_app(
     resolved_auth_enabled = (
         auth_enabled
         if auth_enabled is not None
-        else os.environ.get("OMNIHARNESS_AUTH_ENABLED", "true").lower() in ("1", "true", "yes")
+        else os.environ.get("SYNAPSE_AUTH_ENABLED", "true").lower() in ("1", "true", "yes")
     )
     auth = auth_client or SupabaseAuthClient()
 
@@ -285,7 +285,7 @@ def create_app(
         resolved_snapshot = (
             snapshot_file
             if snapshot_file is not None
-            else os.environ.get("OMNIHARNESS_SNAPSHOT_FILE")
+            else os.environ.get("SYNAPSE_SNAPSHOT_FILE")
         )
         if resolved_snapshot:
             snap_path = Path(resolved_snapshot)
@@ -307,7 +307,7 @@ def create_app(
         lifespan=lifespan,
     )
 
-    raw_cors = os.environ.get("OMNIHARNESS_CORS_ORIGINS", "").strip()
+    raw_cors = os.environ.get("SYNAPSE_CORS_ORIGINS", "").strip()
     allowed_origins = (
         [o.strip() for o in raw_cors.split(",") if o.strip()]
         if raw_cors
@@ -369,7 +369,7 @@ def create_app(
             return AuthPrincipal(
                 kind="anonymous",
                 user_id="local-admin",
-                email="local@omniharness",
+                email="local@synapse",
                 display_name="Local Admin",
                 scopes=("board:read", "board:write", "board:admin", "tasks:read", "tasks:claim", "tasks:submit", "nodes:create"),
             )
@@ -1022,7 +1022,7 @@ def create_app(
         ) or "  (none)"
         return PlainTextResponse(
             content=(
-                "# OmniHarness Agent Protocol\n"
+                "# SYNAPSE Agent Protocol\n"
                 f"Server: {base_url}\n"
                 f"Board: {resolved_board}\n"
                 f"MCP Endpoint: {base_url}/mcp (Authorization: Bearer <BOARD_AGENT_KEY>)\n"

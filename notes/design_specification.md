@@ -1,4 +1,4 @@
-# OmniHarness / Control AI Design Specification
+# SYNAPSE / Control AI Design Specification
 **Source**: Figma Node `3:2` ("Control AI · Policy platform", 1600x1200px)
 **Visual Reference**: `figma_reference.png`
 **Target File**: `harness/dashboard.html`
@@ -249,6 +249,6 @@ All icons can be rendered with clean, high-fidelity inline SVGs:
      1. Highlights that node's dot with an amber pulse ring (`0 0 12px #d9bd86`).
      2. Highlights the connecting optic-fiber curve to full opacity white-cyan (`#ffffff` / `#a0d9bc`).
      3. Populates the Right Inspector Drawer title, sentiment score, and risk indicators with the selected law's data.
-3. **OmniHarness Live Integration**:
+3. **SYNAPSE Live Integration**:
    - Connects to `/ws/graph` for real-time node state broadcasts.
    - Updates task claims, agent execution logs, and blast-radius notifications live.

@@ -1,13 +1,13 @@
 """
 Standalone Laptop 2 Worker Script.
-Can run on ANY machine with Python 3.9+ without needing to clone the OmniHarness repository.
+Can run on ANY machine with Python 3.9+ without needing to clone the SYNAPSE repository.
 
 Workflow:
-1. Connects to OmniHarness tunnel: https://jewel-untitled-respective-devel.trycloudflare.com
+1. Connects to SYNAPSE tunnel: https://jewel-untitled-respective-devel.trycloudflare.com
 2. Claims TSK-04 ("Generate Sample RSA Keypair & 15-Min Token")
 3. Pulls scoped upstream context (ART-01 Pydantic Schema + DEC-02 Decision)
 4. Generates an RSA-2048 keypair, formats public JWK, and signs a 15-min RS256 token
-5. Submits the completed artifact back to OmniHarness
+5. Submits the completed artifact back to SYNAPSE
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def http_get(endpoint: str) -> dict:
 
 
 def main():
-    print(f"=== Laptop 2 Agent ({AGENT_ID}) Connecting to OmniHarness ===")
+    print(f"=== Laptop 2 Agent ({AGENT_ID}) Connecting to SYNAPSE ===")
     print(f"Server URL: {SERVER_URL}\n")
 
     # Step 1: Claim Task TSK-04
@@ -82,15 +82,15 @@ def main():
                 "kty": "RSA",
                 "use": "sig",
                 "alg": "RS256",
-                "kid": "key-omniharness-2026",
+                "kid": "key-synapse-2026",
                 "n": "v1m5x8P_q7Z_EXAMPLE_MODULUS_2048_BITS_VALID_FOR_TESTING...",
                 "e": "AQAB"
             }
         },
         "token_payload": {
             "sub": "usr_alice123",
-            "iss": "omniharness-auth",
-            "aud": "omniharness-api",
+            "iss": "synapse-auth",
+            "aud": "synapse-api",
             "iat": now,
             "nbf": now,
             "exp": expiry,
@@ -103,14 +103,14 @@ def main():
         "sample_jwt_header": {
             "alg": "RS256",
             "typ": "JWT",
-            "kid": "key-omniharness-2026"
+            "kid": "key-synapse-2026"
         },
         "verification_hint": f"Valid until {time.strftime('%H:%M:%S UTC', time.gmtime(expiry))} (15 minutes from issue)"
     }
     print("  ✔ Generated valid RS256 token payload with 15-min expiration.")
 
     # Step 4: Submit Result to Shared Harness
-    print(f"\n[4/4] Submitting completed output to OmniHarness...")
+    print(f"\n[4/4] Submitting completed output to SYNAPSE...")
     submit_payload = {
         "task_id": TASK_ID,
         "agent_id": AGENT_ID,

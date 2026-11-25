@@ -22,8 +22,8 @@ ENV/
 htmlcov/
 *.log
 
-# OmniHarness local profile & secrets
-.omniharness.json
+# SYNAPSE local profile & secrets
+.synapse.json
 .env
 .env.local
 .env.*.local

@@ -1,5 +1,5 @@
 """
-Fetch and display the completed task output from OmniHarness on Laptop 1.
+Fetch and display the completed task output from SYNAPSE on Laptop 1.
 """
 from __future__ import annotations
 
@@ -42,8 +42,8 @@ def fetch_node(node_id: str, server_url: str = SERVER_URL) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fetch task result from OmniHarness")
+    parser = argparse.ArgumentParser(description="Fetch task result from SYNAPSE")
     parser.add_argument("task_id", nargs="?", default="TSK-04", help="Task ID (default: TSK-04)")
-    parser.add_argument("--server", default=SERVER_URL, help="OmniHarness server URL")
+    parser.add_argument("--server", default=SERVER_URL, help="SYNAPSE server URL")
     args = parser.parse_args()
     fetch_node(args.task_id, args.server)

@@ -1,6 +1,6 @@
 """
 Post JWT RS256 Auth Architecture Decision and Pydantic Schema Draft
-to OmniHarness on https://jewel-untitled-respective-devel.trycloudflare.com
+to SYNAPSE on https://jewel-untitled-respective-devel.trycloudflare.com
 """
 from __future__ import annotations
 
@@ -68,8 +68,8 @@ class TokenPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     sub: str = Field(..., description="Subject identifier (user_id)")
-    iss: str = Field(default="omniharness-auth", description="Issuer authority URI")
-    aud: str = Field(default="omniharness-api", description="Intended audience")
+    iss: str = Field(default="synapse-auth", description="Issuer authority URI")
+    aud: str = Field(default="synapse-api", description="Intended audience")
     exp: int = Field(..., description="Expiration timestamp (Unix epoch)")
     nbf: int = Field(default_factory=lambda: int(time.time()), description="Not-before timestamp")
     iat: int = Field(default_factory=lambda: int(time.time()), description="Issued-at timestamp")
@@ -119,7 +119,7 @@ class TokenResponse(BaseModel):
 class TokenVerificationRequest(BaseModel):
     """Request body for service-to-service token verification."""
     token: str = Field(..., description="Raw bearer JWT string")
-    expected_audience: Optional[str] = "omniharness-api"
+    expected_audience: Optional[str] = "synapse-api"
     leeway_seconds: int = Field(default=10, description="Permitted clock skew leeway")
 
 
@@ -147,7 +147,7 @@ def post_node(node_data: dict) -> None:
 
 
 def main():
-    print(f"Connecting to OmniHarness at {SERVER_URL}...")
+    print(f"Connecting to SYNAPSE at {SERVER_URL}...")
 
     # 1. Post DEC-02 (Architecture Decision)
     dec_node = {

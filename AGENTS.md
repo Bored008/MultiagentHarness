@@ -1,4 +1,4 @@
-# Project Guidelines: OmniHarness (MultiagentHarness)
+# Project Guidelines: SYNAPSE (SYNAPSE)
 NexHack 2.0 — Problem Statement 01: Multi-Agent Harness for Shared Team Knowledge Base
 
 ## 1. Project Overview & Architecture
@@ -21,10 +21,10 @@ NexHack 2.0 — Problem Statement 01: Multi-Agent Harness for Shared Team Knowle
 - **Knowledge Graph**: Keep codebase mapped via `graphify .`.
 
 ## 4. Coding Agent Task Workflow (Zero-Ceremony)
-When asked to work on a task from OmniHarness (local or `https://multiagentharness.onrender.com`):
-- **Generate a Board Agent Key**: Log in at `/dashboard`, select your Knowledge Board, open **Team & MCP**, and generate an `omni_...` Board Agent Key (valid until revoked).
+When asked to work on a task from SYNAPSE (local or `https://multiagentharness.onrender.com`):
+- **Generate a Board Agent Key**: Log in at `/dashboard`, select your Knowledge Board, open **Team & MCP**, and generate an `syn_...` Board Agent Key (valid until revoked).
 - **MCP Connection**: Point your MCP client at `https://multiagentharness.onrender.com/mcp` with `Authorization: Bearer <BOARD_AGENT_KEY>`, or run `python -m harness.mcp_server` over stdio after `connect`.
 - **Discover live state & protocol**: `GET /llms.txt` (with `Authorization: Bearer <BOARD_AGENT_KEY>`).
-- **One-time laptop setup**: `python -m adapters.<claude|codex|agy>_adapter connect <SERVER_URL> --agent-id <AGENT_ID> --api-key <BOARD_AGENT_KEY> --board-id <BOARD_ID>` (saves `.omniharness.json`).
+- **One-time laptop setup**: `python -m adapters.<claude|codex|agy>_adapter connect <SERVER_URL> --agent-id <AGENT_ID> --api-key <BOARD_AGENT_KEY> --board-id <BOARD_ID>` (saves `.synapse.json`).
 - **Claim & pull scoped context**: `python -m adapters.<claude|codex|agy>_adapter start [TASK_ID]` (auto-picks next ready task if ID omitted).
 - **Submit completed work**: `python -m adapters.<claude|codex|agy>_adapter done <TASK_ID> "<summary>"` (or `--file path/to/output.json`).

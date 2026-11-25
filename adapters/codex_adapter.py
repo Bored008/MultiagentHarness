@@ -1,5 +1,5 @@
 """
-OpenAI Codex / Cursor Adapter for OmniHarness.
+OpenAI Codex / Cursor Adapter for SYNAPSE.
 Subclasses BaseAgentAdapter with custom CLI entrypoint and Cursor-compatible prompts.
 """
 from __future__ import annotations
@@ -14,14 +14,14 @@ from adapters.cli import build_adapter_parser, run_adapter_cli
 
 DEFAULT_AGENT_ID = "openai-codex-cursor"
 CLI_PROG = "python -m adapters.codex_adapter"
-CLI_DESCRIPTION = "OmniHarness Adapter for OpenAI Codex / Cursor"
+CLI_DESCRIPTION = "SYNAPSE Adapter for OpenAI Codex / Cursor"
 
 
 class CodexAdapter(BaseAgentAdapter):
     """
     Adapter specialized for OpenAI Codex / Cursor.
     Enables Codex / Cursor agents to discover, claim, execute, and submit
-    tasks within the shared OmniHarness graph.
+    tasks within the shared SYNAPSE graph.
     """
 
     def __init__(

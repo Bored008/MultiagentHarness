@@ -1,8 +1,8 @@
 """
-Antigravity (AGY) Agent Adapter for OmniHarness.
+Antigravity (AGY) Agent Adapter for SYNAPSE.
 Subclasses BaseAgentAdapter with custom CLI entrypoint and Antigravity-specific prompt structures.
 Enables Antigravity agents running across multiple laptops to discover, claim, execute, and submit
-tasks within the shared OmniHarness graph.
+tasks within the shared SYNAPSE graph.
 """
 from __future__ import annotations
 
@@ -16,14 +16,14 @@ from adapters.cli import build_adapter_parser, run_adapter_cli
 
 DEFAULT_AGENT_ID = "antigravity-agent"
 CLI_PROG = "python -m adapters.agy_adapter"
-CLI_DESCRIPTION = "OmniHarness Adapter for Google Antigravity (AGY)"
+CLI_DESCRIPTION = "SYNAPSE Adapter for Google Antigravity (AGY)"
 
 
 class AntigravityAdapter(BaseAgentAdapter):
     """
     Adapter specialized for Google Antigravity (AGY).
     Enables Antigravity agents to discover, claim, execute, and submit
-    tasks within the shared OmniHarness graph.
+    tasks within the shared SYNAPSE graph.
     """
 
     def __init__(

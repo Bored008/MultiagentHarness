@@ -42,8 +42,8 @@ def make_token(
     email: str = "alex@example.com",
     roles: list[str] = None,
     exp_offset_seconds: int = 900,  # 15 minutes (REQ-01)
-    aud: str = "omniharness-api",
-    iss: str = "omniharness-auth",
+    aud: str = "synapse-api",
+    iss: str = "synapse-auth",
 ) -> str:
     now = int(time.time())
     payload = {

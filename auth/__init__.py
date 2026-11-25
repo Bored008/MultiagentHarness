@@ -1,6 +1,6 @@
 """
 Auth Module: Token verification and FastAPI middleware.
-Adheres to OmniHarness requirements (RS256 asymmetric stateless JWT validation).
+Adheres to SYNAPSE requirements (RS256 asymmetric stateless JWT validation).
 """
 from auth.middleware import BearerAuthDependency, BearerTokenMiddleware
 from auth.schemas import TokenPayload, TokenVerificationResult, UserClaims

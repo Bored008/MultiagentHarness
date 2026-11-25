@@ -1,5 +1,5 @@
 """
-OmniHarness Adapters Module.
+SYNAPSE Adapters Module.
 """
 from adapters.base import BaseAgentAdapter, ConflictListener
 

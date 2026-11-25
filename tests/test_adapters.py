@@ -1,5 +1,5 @@
 """
-Unit and integration tests for OmniHarness Claude Code and Codex Adapters.
+Unit and integration tests for SYNAPSE Claude Code and Codex Adapters.
 Verifies contract symmetry, strict idempotency key handling, and real-time WebSocket conflict alerts.
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ import httpx
 import pytest
 import websockets.sync.server
 
-from adapters.base import BaseAgentAdapter, ConflictListener, OmniHarnessClient
+from adapters.base import BaseAgentAdapter, ConflictListener, SynapseClient
 from adapters.claude_adapter import ClaudeCodeAdapter, build_parser as build_claude_parser, main as claude_main
 from adapters.codex_adapter import CodexAdapter, build_parser as build_codex_parser, main as codex_main
 from adapters.agy_adapter import AntigravityAdapter, build_parser as build_agy_parser, main as agy_main
@@ -32,7 +32,7 @@ def test_adapter_contract_symmetry():
     assert issubclass(claude_cls, BaseAgentAdapter)
     assert issubclass(codex_cls, BaseAgentAdapter)
     assert issubclass(agy_cls, BaseAgentAdapter)
-    assert OmniHarnessClient is BaseAgentAdapter
+    assert SynapseClient is BaseAgentAdapter
 
     # Core required methods
     required_methods = [
@@ -120,7 +120,7 @@ def test_claim_task_explicit_idempotency_key():
         )
 
     transport = httpx.MockTransport(mock_handler)
-    client = httpx.Client(transport=transport, base_url="http://mock-omniharness")
+    client = httpx.Client(transport=transport, base_url="http://mock-synapse")
 
     adapter = ClaudeCodeAdapter(client=client)
     res = adapter.claim_task("TSK-01", idempotency_key="idemp-key-custom-001")
@@ -143,7 +143,7 @@ def test_claim_task_auto_generated_idempotency_key():
         return httpx.Response(200, json={"status": "IN_PROGRESS"})
 
     transport = httpx.MockTransport(mock_handler)
-    client = httpx.Client(transport=transport, base_url="http://mock-omniharness")
+    client = httpx.Client(transport=transport, base_url="http://mock-synapse")
 
     adapter = CodexAdapter(client=client)
     adapter.claim_task("TSK-02")
@@ -171,7 +171,7 @@ def test_submit_result_with_and_without_idempotency():
         )
 
     transport = httpx.MockTransport(mock_handler)
-    client = httpx.Client(transport=transport, base_url="http://mock-omniharness")
+    client = httpx.Client(transport=transport, base_url="http://mock-synapse")
 
     adapter = CodexAdapter(client=client)
 
@@ -232,7 +232,7 @@ def test_get_subgraph_and_format_prompt():
         )
 
     transport = httpx.MockTransport(mock_handler)
-    client = httpx.Client(transport=transport, base_url="http://mock-omniharness")
+    client = httpx.Client(transport=transport, base_url="http://mock-synapse")
 
     adapter = ClaudeCodeAdapter(client=client)
     subgraph = adapter.get_subgraph("TSK-03")
@@ -431,11 +431,11 @@ def test_helpers_and_context_manager():
 
 
 # ---------------------------------------------------------------------------
-# 6. OmniHarnessClient Alias & Extended Formatting Tests
+# 6. SynapseClient Alias & Extended Formatting Tests
 # ---------------------------------------------------------------------------
 
-def test_omniharness_client_alias_and_methods():
-    """Verify OmniHarnessClient alias, tool_name initialization, and prompt formatting."""
+def test_synapse_client_alias_and_methods():
+    """Verify SynapseClient alias, tool_name initialization, and prompt formatting."""
     captured = {}
 
     def mock_handler(request: httpx.Request) -> httpx.Response:
@@ -452,19 +452,19 @@ def test_omniharness_client_alias_and_methods():
 
     mock_client = httpx.Client(transport=httpx.MockTransport(mock_handler), base_url="http://localhost:8000")
 
-    client = OmniHarnessClient(
+    client = SynapseClient(
         base_url="http://localhost:8000",
         agent_id="test-client-agent",
-        tool_name="omniharness-core",
+        tool_name="synapse-core",
         client=mock_client,
     )
     assert client.agent_id == "test-client-agent"
-    assert client.tool_name == "omniharness-core"
+    assert client.tool_name == "synapse-core"
     assert client.server_url == "http://localhost:8000"
 
     # Test claim_task passes tool_name
     client.claim_task("TSK-01", idempotency_key="client-claim-001")
-    assert captured["claim_body"]["tool_name"] == "omniharness-core"
+    assert captured["claim_body"]["tool_name"] == "synapse-core"
     assert captured["claim_body"]["agent_id"] == "test-client-agent"
 
     # Test submit_task alias
@@ -832,7 +832,7 @@ def test_three_way_cli_parser_symmetry():
 
 
 def test_cli_config_resolution_precedence(tmp_path, monkeypatch):
-    """Verify CLI flags > env vars > CWD .omniharness.json > ~/.omniharness.json > defaults."""
+    """Verify CLI flags > env vars > CWD .synapse.json > ~/.synapse.json > defaults."""
     from pathlib import Path
     from adapters.cli import resolve_cli_config
 
@@ -842,16 +842,16 @@ def test_cli_config_resolution_precedence(tmp_path, monkeypatch):
     work_dir.mkdir()
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
     monkeypatch.chdir(work_dir)
-    monkeypatch.delenv("OMNIHARNESS_SERVER", raising=False)
-    monkeypatch.delenv("OMNIHARNESS_AGENT_ID", raising=False)
+    monkeypatch.delenv("SYNAPSE_SERVER", raising=False)
+    monkeypatch.delenv("SYNAPSE_AGENT_ID", raising=False)
 
     # 1. Defaults when no config files or env vars exist
     srv, ag = resolve_cli_config(None, None, "claude-code-cli")
     assert srv == "http://localhost:8000"
     assert ag == "claude-code-cli"
 
-    # 2. Home ~/.omniharness.json overrides defaults
-    (fake_home / ".omniharness.json").write_text(
+    # 2. Home ~/.synapse.json overrides defaults
+    (fake_home / ".synapse.json").write_text(
         json.dumps({"server": "http://home-hub:9000/", "agent_id": "home-agent"}),
         encoding="utf-8",
     )
@@ -859,8 +859,8 @@ def test_cli_config_resolution_precedence(tmp_path, monkeypatch):
     assert srv == "http://home-hub:9000"
     assert ag == "home-agent"
 
-    # 3. CWD .omniharness.json overrides home profile
-    (work_dir / ".omniharness.json").write_text(
+    # 3. CWD .synapse.json overrides home profile
+    (work_dir / ".synapse.json").write_text(
         json.dumps({"server": "http://cwd-hub:8100/", "agent_id": "cwd-agent"}),
         encoding="utf-8",
     )
@@ -868,9 +868,9 @@ def test_cli_config_resolution_precedence(tmp_path, monkeypatch):
     assert srv == "http://cwd-hub:8100"
     assert ag == "cwd-agent"
 
-    # 4. Env vars override .omniharness.json
-    monkeypatch.setenv("OMNIHARNESS_SERVER", "https://env-hub.example.com/")
-    monkeypatch.setenv("OMNIHARNESS_AGENT_ID", "env-agent")
+    # 4. Env vars override .synapse.json
+    monkeypatch.setenv("SYNAPSE_SERVER", "https://env-hub.example.com/")
+    monkeypatch.setenv("SYNAPSE_AGENT_ID", "env-agent")
     srv, ag = resolve_cli_config(None, None, "claude-code-cli")
     assert srv == "https://env-hub.example.com"
     assert ag == "env-agent"
@@ -882,7 +882,7 @@ def test_cli_config_resolution_precedence(tmp_path, monkeypatch):
 
 
 def test_cli_connect_command_saves_profile_and_checks_health(tmp_path, monkeypatch, capsys):
-    """Verify `connect` saves .omniharness.json in CWD and pings /health (including offline tolerance)."""
+    """Verify `connect` saves .synapse.json in CWD and pings /health (including offline tolerance)."""
     from pathlib import Path
 
     fake_home = tmp_path / "home"
@@ -891,8 +891,8 @@ def test_cli_connect_command_saves_profile_and_checks_health(tmp_path, monkeypat
     work_dir.mkdir()
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
     monkeypatch.chdir(work_dir)
-    monkeypatch.delenv("OMNIHARNESS_SERVER", raising=False)
-    monkeypatch.delenv("OMNIHARNESS_AGENT_ID", raising=False)
+    monkeypatch.delenv("SYNAPSE_SERVER", raising=False)
+    monkeypatch.delenv("SYNAPSE_AGENT_ID", raising=False)
 
     def ok_handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
@@ -919,7 +919,7 @@ def test_cli_connect_command_saves_profile_and_checks_health(tmp_path, monkeypat
     assert captured_init["server_url"] == "http://team-hub:8000"
     assert captured_init["agent_id"] == "laptop2-agy"
 
-    saved = json.loads((work_dir / ".omniharness.json").read_text(encoding="utf-8"))
+    saved = json.loads((work_dir / ".synapse.json").read_text(encoding="utf-8"))
     assert saved == {"server": "http://team-hub:8000", "agent_id": "laptop2-agy"}
     out = capsys.readouterr().out
     assert "Health: healthy (nodes: 8)" in out
@@ -948,8 +948,8 @@ def test_cli_connect_command_saves_profile_and_checks_health(tmp_path, monkeypat
 def test_cli_tasks_start_done_seed_reset_shortcuts(tmp_path, monkeypatch, capsys):
     """Verify tasks, start (explicit + auto-next), done, seed, and reset shortcuts across adapters."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("OMNIHARNESS_SERVER", raising=False)
-    monkeypatch.delenv("OMNIHARNESS_AGENT_ID", raising=False)
+    monkeypatch.delenv("SYNAPSE_SERVER", raising=False)
+    monkeypatch.delenv("SYNAPSE_AGENT_ID", raising=False)
 
     calls: List[Dict[str, Any]] = []
     ready_mode = {"has_ready": True}
@@ -1063,8 +1063,8 @@ def test_cli_tasks_start_done_seed_reset_shortcuts(tmp_path, monkeypatch, capsys
 def test_cli_export_and_import_commands(tmp_path, monkeypatch, capsys):
     """Verify `export` (stdout, positional file, --file) and `import` (replace and --merge)."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("OMNIHARNESS_SERVER", raising=False)
-    monkeypatch.delenv("OMNIHARNESS_AGENT_ID", raising=False)
+    monkeypatch.delenv("SYNAPSE_SERVER", raising=False)
+    monkeypatch.delenv("SYNAPSE_AGENT_ID", raising=False)
 
     snapshot_payload = {
         "version": 1,

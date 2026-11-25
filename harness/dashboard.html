@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-OMNIHARNESS AGENT PROTOCOL (for AI coding agents reading this page or HTML file)
+SYNAPSE AGENT PROTOCOL (for AI coding agents reading this page or HTML file)
 Plain-text live guide & ready tasks: GET /llms.txt or GET /agent
 API Base: same origin as this page (or https://multiagentharness.onrender.com)
 
@@ -2718,8 +2718,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       let savedId = null;
       let customName = null;
       try {
-        savedId = localStorage.getItem('omniharness_user_id');
-        customName = localStorage.getItem('omniharness_custom_name');
+        savedId = localStorage.getItem('synapse_user_id');
+        customName = localStorage.getItem('synapse_custom_name');
       } catch {}
 
       const users = Array.isArray(graphData.users) ? graphData.users : [];
@@ -2744,8 +2744,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
           if (data && data.user && data.user.user_id) {
             currentBrowserUserId = data.user.user_id;
             try {
-              localStorage.setItem('omniharness_user_id', data.user.user_id);
-              localStorage.setItem('omniharness_user_name', data.user.display_name || data.user.user_id);
+              localStorage.setItem('synapse_user_id', data.user.user_id);
+              localStorage.setItem('synapse_user_name', data.user.display_name || data.user.user_id);
             } catch {}
           }
           if (data && Array.isArray(data.users)) {
@@ -2982,14 +2982,14 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
 
     // ===================== AUTH, MULTI-BOARD & TEAM ACCESS =====================
     function getStoredToken() {
-      try { return localStorage.getItem('omniharness_access_token') || ''; } catch { return ''; }
+      try { return localStorage.getItem('synapse_access_token') || ''; } catch { return ''; }
     }
     function setStoredTokens(accessToken, refreshToken) {
       try {
-        if (accessToken) localStorage.setItem('omniharness_access_token', accessToken);
-        else localStorage.removeItem('omniharness_access_token');
-        if (refreshToken) localStorage.setItem('omniharness_refresh_token', refreshToken);
-        else if (refreshToken === null) localStorage.removeItem('omniharness_refresh_token');
+        if (accessToken) localStorage.setItem('synapse_access_token', accessToken);
+        else localStorage.removeItem('synapse_access_token');
+        if (refreshToken) localStorage.setItem('synapse_refresh_token', refreshToken);
+        else if (refreshToken === null) localStorage.removeItem('synapse_refresh_token');
       } catch {}
     }
 
@@ -3002,7 +3002,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       let res = await fetch(url, { ...options, headers, credentials: 'same-origin' });
       if (res.status === 401 && allowRefresh && authConfig.auth_enabled) {
         let rt = '';
-        try { rt = localStorage.getItem('omniharness_refresh_token') || ''; } catch {}
+        try { rt = localStorage.getItem('synapse_refresh_token') || ''; } catch {}
         if (rt) {
           const refRes = await fetch('/api/auth/refresh', {
             method: 'POST',
@@ -3190,7 +3190,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       if (!res.ok) return;
       boardsList = await res.json();
       let savedBoard = null;
-      try { savedBoard = localStorage.getItem('omniharness_active_board'); } catch {}
+      try { savedBoard = localStorage.getItem('synapse_active_board'); } catch {}
       if (!activeBoardId || !boardsList.some(b => b.id === activeBoardId)) {
         const preferred = boardsList.find(b => b.id === savedBoard) || boardsList[0];
         activeBoardId = preferred ? preferred.id : null;
@@ -3201,7 +3201,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     async function selectBoard(boardId) {
       if (!boardId || activeBoardId === boardId) return;
       activeBoardId = boardId;
-      try { localStorage.setItem('omniharness_active_board', boardId); } catch {}
+      try { localStorage.setItem('synapse_active_board', boardId); } catch {}
       customPositions = {};
       hasInitialFit = false;
       selectedNodeId = null;
@@ -3677,8 +3677,8 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       const nextName = input.value.trim();
       if (!nextName) return;
       try {
-        localStorage.setItem('omniharness_custom_name', nextName);
-        localStorage.setItem('omniharness_user_name', nextName);
+        localStorage.setItem('synapse_custom_name', nextName);
+        localStorage.setItem('synapse_user_name', nextName);
       } catch {}
       try {
         const boardParam = activeBoardId ? `?board_id=${encodeURIComponent(activeBoardId)}` : '';

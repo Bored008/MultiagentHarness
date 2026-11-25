@@ -16,7 +16,7 @@ from jwt import PyJWKClient
 
 DEFAULT_SUPABASE_URL = "https://zxycpgztcttumhhazadf.supabase.co"
 DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_Ayj649eKgOO3-sLj94OuPg_e2Yyd5v4"
-AGENT_KEY_PREFIX = "omni_"
+AGENT_KEY_PREFIX = "syn_"
 
 
 @dataclass(frozen=True)
@@ -89,7 +89,7 @@ class SupabaseAuthClient:
             or os.environ.get("SUPABASE_ANON_KEY")
             or DEFAULT_SUPABASE_PUBLISHABLE_KEY
         )
-        self.local_jwt_secret = local_jwt_secret or os.environ.get("OMNIHARNESS_JWT_SECRET")
+        self.local_jwt_secret = local_jwt_secret or os.environ.get("SYNAPSE_JWT_SECRET")
         self.local_public_key = local_public_key
         self.local_algorithm = local_algorithm
         self._http_client = http_client

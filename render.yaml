@@ -1,13 +1,13 @@
 services:
   - type: web
-    name: omniharness
+    name: synapse
     runtime: docker
     plan: free
     healthCheckPath: /health
     envVars:
-      - key: OMNIHARNESS_DB_PATH
-        value: /app/data/omniharness.db
-      - key: OMNIHARNESS_AUTH_ENABLED
+      - key: SYNAPSE_DB_PATH
+        value: /app/data/synapse.db
+      - key: SYNAPSE_AUTH_ENABLED
         value: "true"
       - key: SUPABASE_URL
         value: https://zxycpgztcttumhhazadf.supabase.co

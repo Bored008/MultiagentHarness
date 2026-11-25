@@ -1,5 +1,5 @@
 """
-Pure domain helpers for OmniHarness 4-letter project slug derivation and preview resolution.
+Pure domain helpers for SYNAPSE 4-letter project slug derivation and preview resolution.
 """
 from __future__ import annotations
 

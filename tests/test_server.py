@@ -1,5 +1,5 @@
 """
-Integration and unit tests for OmniHarness FastAPI REST endpoints and WebSocket Hub.
+Integration and unit tests for SYNAPSE FastAPI REST endpoints and WebSocket Hub.
 Tests REST contracts, cycle rejection (400), missing dependencies (404),
 claim/submit conflicts (409), strict idempotency replay (200), scoped subgraphs,
 real-time WebSocket broadcasting (<50ms latency), and startup DAG hydration.
@@ -29,7 +29,7 @@ from harness.graph import DAGManager
 @pytest.fixture(autouse=True)
 def _disable_auth_for_legacy_dag_tests(monkeypatch):
     """Keep legacy single-board DAG integration tests focused on graph mechanics without tokens."""
-    monkeypatch.setenv("OMNIHARNESS_AUTH_ENABLED", "false")
+    monkeypatch.setenv("SYNAPSE_AUTH_ENABLED", "false")
 
 
 @pytest.fixture
@@ -661,8 +661,8 @@ def test_startup_lifespan_hydration(temp_db):
 
 
 def test_create_app_uses_env_db_path_and_creates_parent_dir(tmp_path, monkeypatch):
-    nested_db = tmp_path / "nested" / "data" / "omniharness.db"
-    monkeypatch.setenv("OMNIHARNESS_DB_PATH", str(nested_db))
+    nested_db = tmp_path / "nested" / "data" / "synapse.db"
+    monkeypatch.setenv("SYNAPSE_DB_PATH", str(nested_db))
 
     env_app = create_app()
     with TestClient(env_app) as client:
@@ -684,7 +684,7 @@ def test_agent_protocol_endpoints_and_dashboard_comment(client):
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/plain")
         body = resp.text
-        assert "# OmniHarness Agent Protocol" in body
+        assert "# SYNAPSE Agent Protocol" in body
         assert "TSK-01" in body
         assert "TSK-03" in body
         assert "/api/tasks/{TASK_ID}/claim" in body
@@ -693,7 +693,7 @@ def test_agent_protocol_endpoints_and_dashboard_comment(client):
 
     dash = client.get("/dashboard")
     assert dash.status_code == 200
-    assert "OMNIHARNESS AGENT PROTOCOL" in dash.text
+    assert "SYNAPSE AGENT PROTOCOL" in dash.text
 
 
 # -------------------------------------------------------------
@@ -804,7 +804,7 @@ def test_import_rejects_cyclic_and_dangling_snapshots_without_corruption(client)
 
 
 def test_startup_snapshot_file_hydrates_empty_db_and_skips_nonempty(tmp_path, monkeypatch):
-    """Verify OMNIHARNESS_SNAPSHOT_FILE hydrates an empty DB on startup and never overwrites a non-empty DB."""
+    """Verify SYNAPSE_SNAPSHOT_FILE hydrates an empty DB on startup and never overwrites a non-empty DB."""
     db_file = tmp_path / "startup_snap.db"
     snap_file = tmp_path / "initial_snapshot.json"
     other_snap_file = tmp_path / "other_snapshot.json"
@@ -828,7 +828,7 @@ def test_startup_snapshot_file_hydrates_empty_db_and_skips_nonempty(tmp_path, mo
     )
     snap_file.write_text(initial_snapshot.model_dump_json(indent=2), encoding="utf-8")
 
-    monkeypatch.setenv("OMNIHARNESS_SNAPSHOT_FILE", str(snap_file))
+    monkeypatch.setenv("SYNAPSE_SNAPSHOT_FILE", str(snap_file))
     first_app = create_app(db_path=str(db_file))
     with TestClient(first_app) as first_client:
         graph = first_client.get("/api/graph").json()
@@ -845,7 +845,7 @@ def test_startup_snapshot_file_hydrates_empty_db_and_skips_nonempty(tmp_path, mo
         events=[],
     )
     other_snap_file.write_text(other_snapshot.model_dump_json(indent=2), encoding="utf-8")
-    monkeypatch.setenv("OMNIHARNESS_SNAPSHOT_FILE", str(other_snap_file))
+    monkeypatch.setenv("SYNAPSE_SNAPSHOT_FILE", str(other_snap_file))
 
     second_app = create_app(db_path=str(db_file))
     with TestClient(second_app) as second_client:

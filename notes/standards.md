@@ -1,4 +1,4 @@
-# OmniHarness Engineering Standards & Invariants
+# SYNAPSE Engineering Standards & Invariants
 
 ## Architecture Principles
 1. **Tool Agnosticism**: Neither the server nor the graph data structure assumes Claude, Codex, Cursor, or Antigravity syntax. All interactions occur via uniform MCP / REST schemas (`/task/claim`, `/task/submit`, `/requirement/update`).

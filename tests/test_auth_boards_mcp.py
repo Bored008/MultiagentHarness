@@ -3,7 +3,7 @@ End-to-end behavioral tests for:
   - Fail-closed authentication on REST, WebSocket, and /mcp (401/1008 when unauthenticated)
   - Multi-board Knowledge Boards ('building' vs 'built') with strict board isolation
   - Friend invite -> pending -> owner approval -> editor/viewer RBAC -> removal
-  - Persistent revocable Board Agent Keys (omni_...) with cascade revocation on member removal
+  - Persistent revocable Board Agent Keys (syn_...) with cascade revocation on member removal
   - Hosted Synapse MCP (/mcp) Streamable HTTP tool calls updating the live board DAG
 """
 from __future__ import annotations
@@ -188,7 +188,7 @@ def test_friend_approval_rbac_and_cascade_key_revocation(secure_client: TestClie
     )
     assert key_res.status_code == 201
     agent_api_key = key_res.json()["api_key"]
-    assert agent_api_key.startswith("omni_")
+    assert agent_api_key.startswith("syn_")
 
     # Agent key works on the authorized board (via adapter & REST) and is blocked from admin reset or other boards
     other_board = secure_client.post(

@@ -1,5 +1,5 @@
 """
-Reusable DAG seed templates for OmniHarness.
+Reusable DAG seed templates for SYNAPSE.
 Single source of truth shared by server /api/seed endpoints and CLI seed scripts.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ SEED_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
                     "PvP (Local Pass & Play): Two human players alternating turns on one screen",
                     "PvAI (Unbeatable Minimax): Single player vs zero-mistake optimal AI engine",
                     "PvAI (Casual Mode): Single player vs AI with 30% error injection for casual play",
-                    "PvP (OmniHarness Remote Sync): Two players on separate laptops synchronized via WebSocket hub",
+                    "PvP (SYNAPSE Remote Sync): Two players on separate laptops synchronized via WebSocket hub",
                 ],
                 "win_conditions": [
                     "3 Horizontal rows: [0,1,2], [3,4,5], [6,7,8]",
@@ -75,7 +75,7 @@ SEED_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
                 "multi_agent_work_allocation": {
                     "claude-code-cli": "Game engine, win/draw verification, and Minimax AI algorithm",
                     "openai-codex": "UI dashboard, glassmorphism CSS, Web Audio FX, confetti system",
-                    "antigravity-agent": "OmniHarness WebSocket multi-laptop sync and session persistence",
+                    "antigravity-agent": "SYNAPSE WebSocket multi-laptop sync and session persistence",
                 },
             },
         },
@@ -161,18 +161,18 @@ SEED_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
         },
         {
             "id": "TSK-05",
-            "title": "OmniHarness Multi-Laptop Two-Player Sync Adapter",
+            "title": "SYNAPSE Multi-Laptop Two-Player Sync Adapter",
             "type": "TASK",
             "status": "PENDING",
             "actor": "antigravity-agent",
             "idempotency_key": "seed-ttt-tsk-05",
             "dependencies": ["TSK-01"],
             "payload": {
-                "instructions": "Wire game state to OmniHarness WebSocket channel (/ws/graph) allowing two developers on different laptops across the Cloudflare tunnel to take turns in real-time.",
+                "instructions": "Wire game state to SYNAPSE WebSocket channel (/ws/graph) allowing two developers on different laptops across the Cloudflare tunnel to take turns in real-time.",
                 "assigned_agent": "Antigravity Agent (Orchestrator)",
                 "deliverable": "WebSocket live multi-laptop synchronization bridge",
                 "acceptance_criteria": [
-                    "Transmits move payloads over OmniHarness WebSocket hub in <50ms",
+                    "Transmits move payloads over SYNAPSE WebSocket hub in <50ms",
                     "Renders opponent moves in real time without page refresh",
                     "Maintains synchronized board state and score tally across both laptop browsers",
                 ],
@@ -189,7 +189,7 @@ SEED_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
             "payload": {
                 "artifact_name": "Tic Tac Toe Multi-Agent Engineering Blueprint",
                 "version": "1.0.0",
-                "summary": "Full architectural blueprint and execution plan for Tic Tac Toe with Unbeatable Minimax AI, Glassmorphism UI, Procedural Audio, and OmniHarness Two-Laptop Sync.",
+                "summary": "Full architectural blueprint and execution plan for Tic Tac Toe with Unbeatable Minimax AI, Glassmorphism UI, Procedural Audio, and SYNAPSE Two-Laptop Sync.",
                 "architecture_sections": [
                     "1. Requirement Specification & Feature Matrix",
                     "2. Architecture & State Machine Design",

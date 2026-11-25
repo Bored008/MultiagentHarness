@@ -1,5 +1,5 @@
 """
-Supabase PostgREST Store backend for OmniHarness.
+Supabase PostgREST Store backend for SYNAPSE.
 Mirrors the EventStore contract over Supabase REST (/rest/v1) using SUPABASE_SERVICE_ROLE_KEY,
 giving Render deployments persistent multi-board Postgres storage across container restarts.
 """
