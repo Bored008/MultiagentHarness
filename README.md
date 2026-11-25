@@ -7,7 +7,15 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com)
 [![NetworkX](https://img.shields.io/badge/NetworkX-DAG_Engine-orange.svg)](https://networkx.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL_Event_Log-003B57.svg)](https://sqlite.org)
+[![Supabase](https://img.shields.io/badge/Supabase-Auth_%26_Postgres-3ECF8E.svg)](https://supabase.com)
+[![Live on Render](https://img.shields.io/badge/Live_Demo-Render-46E3B7.svg)](https://multiagentharness.onrender.com/dashboard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+### 🌐 Live Deployment
+- **SYNAPSE Dashboard**: [https://multiagentharness.onrender.com/dashboard](https://multiagentharness.onrender.com/dashboard)
+- **Hosted MCP Endpoint**: `https://multiagentharness.onrender.com/mcp` (`Authorization: Bearer <BOARD_AGENT_KEY>`)
+- **API Docs**: [https://multiagentharness.onrender.com/docs](https://multiagentharness.onrender.com/docs)
+- **Health Check**: [https://multiagentharness.onrender.com/health](https://multiagentharness.onrender.com/health)
 
 ---
 
