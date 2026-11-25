@@ -933,6 +933,9 @@ Short CLI (if inside repo; save server once with `connect`):
       justify-content: space-between;
       gap: 8px;
     }
+    .right-drawer .drawer-close {
+      display: none;
+    }
 
     .drawer-type-pill {
       height: 24px;
@@ -1794,9 +1797,11 @@ Short CLI (if inside repo; save server once with `connect`):
         border-radius: 14px 14px 0 0;
         box-shadow: 0 -8px 30px rgba(16, 24, 40, 0.16);
       }
-      .right-drawer-rail,
-      .right-drawer-rail.visible {
-        display: none;
+      .right-drawer .drawer-close {
+        display: inline-flex;
+      }
+      .right-drawer .drawer-close svg {
+        transform: rotate(90deg);
       }
       .event-log-bar {
         height: 128px;
@@ -2141,13 +2146,6 @@ Short CLI (if inside repo; save server once with `connect`):
       </div>
     </aside>
 
-    <!-- Collapsed Task Inspector Rail -->
-    <aside class="right-drawer-rail" id="drawer-rail" aria-label="Collapsed task inspector">
-      <button class="sidebar-collapse-btn" id="btn-expand-drawer" type="button" title="Expand task sidebar" aria-label="Expand task sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m10 9-3 3 3 3"/></svg>
-      </button>
-      <span class="rail-label">Task Inspector</span>
-    </aside>
     </div>
   </div>
 
@@ -3208,8 +3206,9 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
     }
 
     function setDrawerCollapsed(collapsed) {
-      drawerEl.classList.toggle('collapsed', collapsed);
-      drawerRailEl.classList.toggle('visible', collapsed);
+      const shouldCollapse = window.innerWidth <= 640 ? Boolean(collapsed) : false;
+      drawerEl.classList.toggle('collapsed', shouldCollapse);
+      if (drawerRailEl) drawerRailEl.classList.toggle('visible', shouldCollapse);
       if (graphData.nodes.length && !Object.keys(customPositions).length) {
         requestAnimationFrame(() => fitGraph());
       }
@@ -4308,17 +4307,12 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       }
     };
 
-    document.getElementById('btn-close-drawer').onclick = () => {
-      setDrawerCollapsed(true);
-    };
-
-    document.getElementById('btn-expand-drawer').onclick = () => {
-      if (!selectedNodeId && graphData.nodes.length > 0) {
-        selectNode(graphData.nodes[0].id);
-      } else {
-        setDrawerCollapsed(false);
-      }
-    };
+    const closeDrawerBtnEl = document.getElementById('btn-close-drawer');
+    if (closeDrawerBtnEl) {
+      closeDrawerBtnEl.onclick = () => {
+        setDrawerCollapsed(true);
+      };
+    }
 
     // ===================== LIVE EVENT LOG RESIZE SLIDER =====================
     const eventLogBarEl = document.getElementById('event-log-bar');
@@ -4376,6 +4370,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       const isMobileNow = window.innerWidth <= 640;
       if (isMobileNow !== lastViewportIsMobile) {
         lastViewportIsMobile = isMobileNow;
+        if (!isMobileNow) setDrawerCollapsed(false);
         if (graphData.nodes.length) renderDAG();
       }
       if (graphData.nodes.length && !Object.keys(customPositions).length) fitGraph();
