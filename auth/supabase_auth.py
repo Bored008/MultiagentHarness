@@ -229,11 +229,21 @@ class SupabaseAuthClient:
             body = {"error_description": res.text}
         return res.status_code, body if isinstance(body, dict) else {"data": body}
 
-    async def sign_up(self, email: str, password: str, display_name: Optional[str] = None) -> Tuple[int, Dict[str, Any]]:
+    async def sign_up(
+        self,
+        email: str,
+        password: str,
+        display_name: Optional[str] = None,
+        redirect_to: Optional[str] = None,
+    ) -> Tuple[int, Dict[str, Any]]:
         payload: Dict[str, Any] = {"email": email.strip(), "password": password}
         if display_name and display_name.strip():
             payload["data"] = {"display_name": display_name.strip()}
-        return await self._post_auth("/signup", payload)
+        path = "/signup"
+        if redirect_to:
+            from urllib.parse import quote
+            path = f"/signup?redirect_to={quote(redirect_to, safe='')}"
+        return await self._post_auth(path, payload)
 
     async def sign_in_password(self, email: str, password: str) -> Tuple[int, Dict[str, Any]]:
         return await self._post_auth(
@@ -241,13 +251,23 @@ class SupabaseAuthClient:
             {"email": email.strip(), "password": password},
         )
 
-    async def send_email_otp(self, email: str) -> Tuple[int, Dict[str, Any]]:
-        return await self._post_auth("/otp", {"email": email.strip(), "create_user": True})
+    async def send_email_otp(self, email: str, redirect_to: Optional[str] = None) -> Tuple[int, Dict[str, Any]]:
+        path = "/otp"
+        if redirect_to:
+            from urllib.parse import quote
+            path = f"/otp?redirect_to={quote(redirect_to, safe='')}"
+        return await self._post_auth(path, {"email": email.strip(), "create_user": True})
 
     async def verify_email_otp(self, email: str, token: str) -> Tuple[int, Dict[str, Any]]:
         return await self._post_auth(
             "/verify",
             {"email": email.strip(), "token": token.strip(), "type": "email"},
+        )
+
+    async def verify_token_hash(self, token_hash: str, otp_type: str = "magiclink") -> Tuple[int, Dict[str, Any]]:
+        return await self._post_auth(
+            "/verify",
+            {"token_hash": token_hash.strip(), "type": otp_type.strip() or "magiclink"},
         )
 
     async def refresh_session(self, refresh_token: str) -> Tuple[int, Dict[str, Any]]:

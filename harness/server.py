@@ -116,6 +116,15 @@ class _AuthRefreshBody(BaseModel):
     refresh_token: str
 
 
+class _AuthSessionBody(BaseModel):
+    access_token: str
+
+
+class _AuthVerifyHashBody(BaseModel):
+    token_hash: str
+    type: str = "magiclink"
+
+
 class ConnectionManager:
     """
     Thread-safe WebSocket connection manager scoped by `board_id`.
@@ -636,7 +645,8 @@ def create_app(
 
     @app.post("/api/auth/signup")
     async def auth_signup(body: _AuthSignupBody, request: Request, response: Response):
-        status_code, data = await auth.sign_up(body.email, body.password, body.display_name)
+        redirect_to = f"{str(request.base_url).rstrip('/')}/dashboard"
+        status_code, data = await auth.sign_up(body.email, body.password, body.display_name, redirect_to=redirect_to)
         if status_code >= 400:
             raise HTTPException(
                 status_code=status_code,
@@ -667,14 +677,40 @@ def create_app(
         return data
 
     @app.post("/api/auth/otp/send")
-    async def auth_otp_send(body: _AuthOtpSendBody):
-        status_code, data = await auth.send_email_otp(body.email)
+    async def auth_otp_send(body: _AuthOtpSendBody, request: Request):
+        redirect_to = f"{str(request.base_url).rstrip('/')}/dashboard"
+        status_code, data = await auth.send_email_otp(body.email, redirect_to=redirect_to)
         if status_code >= 400:
             raise HTTPException(
                 status_code=status_code,
                 detail=data.get("msg") or data.get("error_description") or "Failed to send OTP",
             )
-        return {"sent": True, "message": "Check your email for the 6-digit login code."}
+        return {"sent": True, "message": "Check your email for the login link or 6-digit code."}
+
+    @app.post("/api/auth/session")
+    async def auth_establish_session(body: _AuthSessionBody, request: Request, response: Response):
+        principal = await auth.verify_human_jwt(body.access_token)
+        if not principal:
+            raise HTTPException(status_code=401, detail="Invalid access token")
+        _set_session_cookie(response, body.access_token, request)
+        _ensure_human_default_board(principal)
+        return {"ok": True, "user_id": principal.user_id, "email": principal.email}
+
+    @app.post("/api/auth/verify-hash")
+    async def auth_verify_hash(body: _AuthVerifyHashBody, request: Request, response: Response):
+        status_code, data = await auth.verify_token_hash(body.token_hash, body.type)
+        if status_code >= 400:
+            raise HTTPException(
+                status_code=status_code,
+                detail=data.get("error_description") or data.get("msg") or "Invalid or expired verification link",
+            )
+        access_token = data.get("access_token")
+        if access_token:
+            _set_session_cookie(response, access_token, request)
+            principal = await auth.verify_human_jwt(access_token)
+            if principal:
+                _ensure_human_default_board(principal)
+        return data
 
     @app.post("/api/auth/otp/verify")
     async def auth_otp_verify(body: _AuthOtpVerifyBody, request: Request, response: Response):

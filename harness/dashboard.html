@@ -3881,6 +3881,56 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       await fetchGraphState();
     }
 
+    async function handleRedirectTokens() {
+      const hashStr = location.hash && location.hash.startsWith('#') ? location.hash.slice(1) : '';
+      const hashParams = new URLSearchParams(hashStr);
+      const queryParams = new URLSearchParams(location.search);
+
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token') || '';
+      const tokenHash = queryParams.get('token_hash');
+      const otpType = queryParams.get('type') || 'magiclink';
+      const authErr = hashParams.get('error_description') || queryParams.get('error_description');
+
+      if (authErr) {
+        history.replaceState(null, '', location.pathname);
+        openAuthModal(authErr);
+        return;
+      }
+
+      if (accessToken) {
+        setStoredTokens(accessToken, refreshToken);
+        try {
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ access_token: accessToken }),
+            credentials: 'same-origin',
+          });
+        } catch {}
+        history.replaceState(null, '', location.pathname);
+        return;
+      }
+
+      if (tokenHash) {
+        try {
+          const res = await fetch('/api/auth/verify-hash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token_hash: tokenHash, type: otpType }),
+            credentials: 'same-origin',
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.access_token) {
+              setStoredTokens(data.access_token, data.refresh_token || '');
+            }
+          }
+        } catch {}
+        history.replaceState(null, '', location.pathname);
+      }
+    }
+
     async function initApp() {
       try {
         const cfgRes = await fetch('/api/auth/config');
@@ -3896,6 +3946,7 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
         return;
       }
 
+      await handleRedirectTokens();
       await bootstrapAuthenticatedSession();
     }
 
