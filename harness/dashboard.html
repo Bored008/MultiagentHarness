@@ -4333,9 +4333,6 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
 
     eventLogResizerEl.addEventListener('dblclick', () => {
       eventLogBarEl.style.height = '100px';
-      if (graphData.nodes.length && !Object.keys(customPositions).length) {
-        requestAnimationFrame(() => fitGraph());
-      }
     });
 
     window.addEventListener('pointermove', (e) => {
@@ -4351,9 +4348,6 @@ python -m adapters.codex_adapter done &lt;TASK_ID&gt; "Implemented feature"</pre
       eventLogResizerEl.classList.remove('dragging');
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      if (graphData.nodes.length && !Object.keys(customPositions).length) {
-        requestAnimationFrame(() => fitGraph());
-      }
     }
     window.addEventListener('pointerup', stopEventLogResize);
     window.addEventListener('pointercancel', stopEventLogResize);
